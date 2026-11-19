@@ -19,6 +19,9 @@ API Reference
 .. automodapi:: glue_solar.sources.dkist_actions
    :no-inheritance-diagram:
 
+.. automodapi:: glue_solar.sources.loaders.iris
+   :no-inheritance-diagram:
+
 .. automodapi:: glue_solar.sources.loaders.scan
    :no-inheritance-diagram:
 

@@ -126,7 +126,7 @@ def mg_features(data, velocities=VELOCITIES, lines=LINES):
     each line, ``k`` (2796.35 Å) and ``h`` (2803.53 Å), its components are irispy's: ``k2v``, ``k3`` and ``k2r``
     (``h2v``, ``h3``, ``h2r``), the blue peak, line center and red peak, each as ``<feature>_velocity`` in km / s and
     ``<feature>_intensity`` in the window's unit; NaN where irispy finds none, or a sample it searches for the line is
-    missing or saturated, as the window's mask marks the Level 2 ceiling, 16182 DN (D85), where ``k saturated``
+    missing or saturated, as the window's mask marks the Level 2 ceiling, 16182 DN, where ``k saturated``
     (``h saturated``), irispy's ``k_saturated`` (``h_saturated``), is 1, else 0. With a rest wavelength set for
     ``data`` with 'Set rest wavelength…', irispy is given its wavelengths shorter by the rest wavelength less
     irispy's k, as irispy advises for IDL's ``wave_comp``: k's velocities are then from the rest wavelength, and h's

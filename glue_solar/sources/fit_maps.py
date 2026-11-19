@@ -1,7 +1,7 @@
 """
 'Fit every spectrum' on the Fit tab of glue's Profile viewer: the viewer's last IRIS fit of a spectrum of a raster
-window fitted to every spectrum of the window, or of each scan of a stack (D59), with astropy's ``parallel_fit_dask``,
-as irispy's ``maps_from_fit`` maps in one new dataset (D86, D88).
+window fitted to every spectrum of the window, or of each scan of a stack, with astropy's ``parallel_fit_dask``,
+as irispy's ``maps_from_fit`` maps in one new dataset.
 """
 
 import math
@@ -67,7 +67,7 @@ def _to_angstrom(x_unit, rest):
 def _in_angstrom(model, scale, shift):
     """
     ``model``, fitted against x, against λ = scale x + shift in Angstrom (`_to_angstrom`), exactly, as the map is
-    linear (D88): each line's center at scale x + shift and its width times scale, their bounds and the separations of
+    linear: each line's center at scale x + shift and its width times scale, their bounds and the separations of
     their ties (`glue_solar.fitters._tie`) alike, and a linear or polynomial background re-expressed in λ, its terms'
     bounds scaled for a length; raises why for such a background with a bound or a fixed term against a velocity,
     which mixes its terms.
@@ -184,12 +184,12 @@ def _fit_maps(data, model, crop, unit, per_second, rest, progress):
         for rows in analysis.slab_rows(data, crop, scans=True):
             values, _, saturated = analysis.read(data, rows, crop, per_second)
             cube = analysis.cube(data, values, rows, crop, unit, saturated)
-            # masked samples, missing or saturated, a lower bound only (D87), left out as NaN by filter_non_finite
+            # masked samples, missing or saturated, a lower bound only, left out as NaN by filter_non_finite
             spectra = np.where(cube.mask, np.nan, values)
             fitter = TRFLSQFitter(calc_uncertainties=True)
             # astropy sends each chunk the slab's starts whole (ParameterContainer); chunks over its 500 fits idle processes
             fitted = parallel_fit_dask(
-                model=starts_from_model(model, cube),  # in Angstrom and unit, as `_last_fit` gives it (D86)
+                model=starts_from_model(model, cube),  # in Angstrom and unit, as `_last_fit` gives it
                 fitter=fitter,
                 data=spectra,
                 data_unit=unit,
@@ -284,7 +284,7 @@ _original_enable = ProfileTools.enable
 
 
 def _enable(self):
-    """glue-qt's Fit tab, with 'Fit every spectrum' beside Fit, as glue-qt has no hook for a fitter's actions (D88)."""
+    """glue-qt's Fit tab, with 'Fit every spectrum' beside Fit, as glue-qt has no hook for a fitter's actions."""
     _original_enable(self)
     button = self.button_fit_every = QtWidgets.QToolButton(text="Fit every spectrum")
     button.clicked.connect(partial(_fit_every_spectrum, self))

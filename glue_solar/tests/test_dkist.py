@@ -1,5 +1,5 @@
 """
-DKIST Level 1 datasets opened from their ASDF files (D102): dkist's test datasets, an ASDF file alone or its small ViSP
+DKIST Level 1 datasets opened from their ASDF files: dkist's test datasets, an ASDF file alone or its small ViSP
 raster with its FITS files, and its sample data, downloaded; sessions of them.
 """
 
@@ -184,7 +184,7 @@ def test_an_image_view_along_the_steps_or_measurements_of_a_context_image_draws(
         cryo = load_data(str(asdf_alone(tmp_path, "croppable_cryo")))
     app.data_collection.append(cryo)
     # its scan steps or measurements along y, which dkist ravels into one index of its times: each draw raised
-    # ValueError, WCSAxes' frame asking below pixel -0.5 of them (D103)
+    # ValueError, WCSAxes' frame asking below pixel -0.5 of them
     for axis in (1, 2):
         viewer = app.new_data_viewer(ImageViewer, data=cryo)
         viewer.state.y_att = cryo.pixel_component_ids[axis]
@@ -227,7 +227,7 @@ def test_a_dkist_raster_opens_its_quicklook_and_labels_its_axes(qtbot, monkeypat
     dataset = dkist.load_dataset(small_visp())
     waves = dataset.wcs.pixel_to_world_values(np.arange(25), 5, 1)[0]
     np.testing.assert_allclose(spectrum.profile, [waves, np.asarray(dataset.data[1, 5])])
-    # its map as IRIS's, the steps across and the slit up, where the slit was along x (D103)
+    # its map as IRIS's, the steps across and the slit up, where the slit was along x
     state, pixel = viewers["map"].state, data.pixel_component_ids
     assert (state.x_att, state.y_att, state.aspect) == (pixel[0], pixel[1], "auto")
     # its wavelength slider the wavelength, where glue-qt gave the raster's time, a world axis of no axis of its own
@@ -243,7 +243,7 @@ def test_a_sit_and_stare_raster_s_quicklook_follows_its_point(qtbot, monkeypatch
     app.data_collection.extend([raster, other])
     quicklook(app, [raster])
     [group] = app.session.edit_subset_mode.edit_subset
-    # a click on its map, where linking points raised IndexError (D97)
+    # a click on its map, where linking points raised IndexError
     point = PixelSubsetState(raster, [slice(2, 3), slice(4, 5), slice(None)])
     app.session.command_stack.do(ApplySubsetState(data_collection=app.data_collection, subset_state=point))
     assert group.subset_state.slices == point.slices
@@ -266,7 +266,7 @@ def test_a_linked_dkist_raster_s_point_moves_to_the_step_at_the_place(qtbot, mon
     app.session.edit_subset_mode.edit_subset = [ours]
     point = PixelSubsetState(first, [slice(0, 1), slice(7, 8), slice(None)])  # step 0, where the other's is 1
     app.session.command_stack.do(ApplySubsetState(data_collection=collection, subset_state=point))
-    # the step whose slit passes nearest, as an IRIS point reaches it, where only its slit pixel moved (D97, D102)
+    # the step whose slit passes nearest, as an IRIS point reaches it, where only its slit pixel moved
     assert theirs.subset_state.slices == point.slices
     assert viewers["slit"].state.slices[0] == 0
 
@@ -332,7 +332,7 @@ def test_a_raster_s_repeats_or_measurements_are_a_slider_in_its_quicklook(qtbot,
     data, values = repeated_raster(axes)
     app = bare_app_for(qtbot, monkeypatch)
     app.show()  # the map's options in sight as it opens
-    # where it was refused, the pointing moving along the repeats too, the steps across and the slit up (D103)
+    # where it was refused, the pointing moving along the repeats too, the steps across and the slit up
     viewers = quicklook(app, [data])
     stokes, repeat, step, slit = map(axes.index, ("stokes", "repeat", "step", "slit"))
     state, ids = viewers["map"].state, data.pixel_component_ids
@@ -375,7 +375,7 @@ def test_a_point_on_a_dkist_dataset_takes_its_viewer_s_stokes_and_measurement(qt
     [layer] = [layer for layer in profile.state.layers if layer.layer is not cryo]
     layer.attribute = cid
     # a point at the viewer's Stokes parameter and measurement, its time profile along the steps alone, where glue's
-    # spanned them and, the Profile's maximum, gave Stokes V's last measurement's (D103)
+    # spanned them and, the Profile's maximum, gave Stokes V's last measurement's
     assert group.subset_state.slices[:3] == [slice(2, 3), slice(None), slice(1, 2)]
     qtbot.waitUntil(lambda: np.array_equal(layer.profile[1], [201, 211, 221]), timeout=60_000)
     # and at the Stokes parameter and measurement the sliders move to, as the quicklook's spectra follow them
@@ -395,7 +395,7 @@ def test_a_point_on_a_dkist_raster_s_default_view_keeps_its_clicked_wavelength(q
     image._session.command_stack.do(ApplySubsetState(data_collection=app.data_collection, subset_state=point))
     [group] = app.data_collection.subset_groups
     # at the viewer's Stokes parameter and the clicked wavelength, its profile along the steps alone, where it spanned
-    # the wavelengths too (D103)
+    # the wavelengths too
     assert group.subset_state.slices == [slice(2, 3), slice(None), slice(400, 401), slice(851, 852)]
 
 
@@ -409,7 +409,7 @@ def test_the_point_window_gives_a_dkist_raster_s_time_and_exposure(qtbot, monkey
     quicklook(app, [data])
     window = point_window(app)
     window.refresh()
-    # at the point's step, 1, its file's DATE-AVG and XPOSURE (ms), as IRIS data's, where both were blank (D103)
+    # at the point's step, 1, its file's DATE-AVG and XPOSURE (ms), as IRIS data's, where both were blank
     headers = dkist.load_dataset(small_visp()).headers
     when = np.datetime_as_string(np.datetime64(headers["DATE-AVG"][1]), unit="ms")
     assert rows(window)[0][3:5] == [f"{when} UTC", f"{headers['XPOSURE'][1] / 1000:.4g} s"]
@@ -417,7 +417,7 @@ def test_the_point_window_gives_a_dkist_raster_s_time_and_exposure(qtbot, monkey
 
 def test_a_dkist_dataset_s_nan_pixels_draw_transparent(app, qtbot, monkeypatch, tmp_path):
     def transparent(viewer):
-        # as IRIS data's: glue painted them black, so each tile of a mosaic in one viewer blackened those beneath (D103)
+        # as IRIS data's: glue painted them black, so each tile of a mosaic in one viewer blackened those beneath
         assert tuple(viewer.layers[0].state.cmap_bad) == (0, 0, 0, 0)  # a list once restored
         image = viewer.axes._composite(bounds=[(-0.5, 1.5, 2), (-0.5, 1.5, 2)])  # its files are not here: NaN
         np.testing.assert_array_equal(image[0, 0], [1, 1, 1, 1])  # the white background shows through
@@ -511,7 +511,7 @@ def test_a_dkist_dataset_reads_its_views_from_its_files_kept_open(tmp_path, monk
     expected = np.asarray(data.get_component(cid).data[view])  # dask's
     opened = opened_files(monkeypatch)
     # as dask reads it, the missing file's step NaN, each file opened once and kept open, where dask opened each at
-    # every read and decompressed it whole (D103)
+    # every read and decompressed it whole
     for _ in range(2):
         np.testing.assert_array_equal(data.get_data(cid, view=view), expected)
     assert np.isnan(expected[1]).all()
@@ -534,7 +534,7 @@ def test_a_removed_dkist_dataset_closes_its_files_kept_open(tmp_path):
     data.get_data(data.main_components[0], view=(slice(None), 0))
     paths = {str(tmp_path / f"{i}.fits") for i in range(3)}
     assert paths <= set(_OPEN)
-    # as it leaves glue, not when glue quits (user, 2026-10-23), and those a profile still computing reads after
+    # as it leaves glue, not when glue quits, and those a profile still computing reads after
     collection.remove(data)
     assert not paths & set(_OPEN)
     data.get_data(data.main_components[0], view=(slice(None), 0))
@@ -552,7 +552,7 @@ def test_a_dkist_dataset_closes_its_files_kept_open_as_reset_session_replaces_it
     paths = {str(tmp_path / f"{i}.fits") for i in range(3)}
     assert paths <= set(_OPEN)
     # Reset Session, as Open Session and 'Restore last session', closes the window, removing no data: they stayed open
-    # until glue quit (user, 2026-10-23)
+    # until glue quit
     qtbot.addWidget(app._reset_session())
     assert not paths & set(_OPEN)
 
@@ -572,7 +572,7 @@ def test_an_image_buffer_of_a_dkist_dataset_reads_only_the_files_of_the_pixels_i
     expected = np.asarray(data["data"])[::2, :, 12]
     opened = opened_files(monkeypatch)
     # steps 0 and 2 at a wavelength, as an Image viewer zoomed out samples them: glue read their bounding box, step 1's
-    # file too, of a ViSP map 500 files where its view samples 34 (D103)
+    # file too, of a ViSP map 500 files where its view samples 34
     buffer = data.compute_fixed_resolution_buffer([(0, 2, 2), (0, 9, 10), 12], target_cid=data.main_components[0])
     np.testing.assert_array_equal(buffer, expected)
     assert sorted(opened) == ["0.fits", "2.fits"]
@@ -588,7 +588,7 @@ def test_a_dkist_image_viewer_redraws_without_evaluating_its_coordinates_again(a
     evaluate = wcs.pixel_to_world_values
     monkeypatch.setattr(wcs, "pixel_to_world_values", lambda *pixel: calls.append(pixel) or evaluate(*pixel))
     # WCSAxes asks the same pixels at each draw, which dkist evaluated again, building a model per raster step: 3 s of
-    # each ViSP map's draw (D103)
+    # each ViSP map's draw
     viewer.figure.canvas.draw()
     assert calls == []
 
@@ -666,7 +666,7 @@ def test_dkist_datasets_of_different_dimensions_link_pixel_to_pixel(tmp_path):
     [[link]] = find_possible_links(dc).values()
     assert isinstance(link, WCSLink)
     dc.add_link(link)
-    # pixel to pixel along the axes those vary along (D18, D102)
+    # pixel to pixel along the axes those vary along
     assert point(visp, (0, 200, 400, 1000), stokes_i) == [200, 1000]
     assert point(stokes_i, (200, 1000), visp) == [None, 200, None, 1000]
     assert glue_patches.needs_wcs_link_workaround() == (WCSLink.__init__ is glue_patches.wcs_link_init)
@@ -680,7 +680,7 @@ def test_off_limb_dkist_data_of_other_dates_do_not_link(tmp_path, dkist_sample):
     with pytest.warns(UserWarning, match="CRYO-NIRSP BMPNP: 0 of 36 files"):
         cryo = load_data(str(asdf_alone(tmp_path, "croppable_cryo")))
     # 2023-01-01 and 2025-03-22: sunpy gives no longitude or latitude off the limb between their observers, and the link
-    # test passed on those NaN pixels (D103)
+    # test passed on those NaN pixels
     with pytest.raises(IncompatibleWCS):
         WCSLink(cryo, load_data(dkist_sample("DBXVEL_full.tar")))
 
@@ -708,7 +708,7 @@ def test_a_mosaic_s_tiles_link_to_its_center_tile(app, tmp_path):
         tiles = load_data(str(asdf_alone(tmp_path, "large_vbi")))
     dc = app.data_collection
     dc.extend(tiles)
-    # each to the center tile, (1, 1): glue suggested every pair's 36 links (D102)
+    # each to the center tile, (1, 1): glue suggested every pair's 36 links
     [links] = find_possible_links(dc).values()
     pairs = [{tiles.index(link.data1), tiles.index(link.data2)} for link in links]
     assert sorted(pairs, key=sorted) == [{k, 4} for k in range(9) if k != 4]
@@ -732,7 +732,7 @@ def test_dkist_data_starting_later_link_and_reach_each_other_within_their_time(a
     later = _data(dataset, "VBI AJQWW (1, 1) later")
     later._mosaic, later._samples = [later], {}
     # linked, where their pixel 0's time lies outside the other's, as a VBI mosaic's tiles and ViSP data observed with
-    # them (D103)
+    # them
     dc = app.data_collection
     dc.extend([tile, later])
     dc.add_link(WCSLink(tile, later))
@@ -755,7 +755,7 @@ def test_dkist_data_observed_together_over_part_of_their_times_link(tmp_path):
     # a copy of the tile, its frames three times as far apart: the tile's frames lie within its first third, and its
     # middle past the tile's last, where the link test, at each one's middle pixel only, refused them; and one of frames
     # a tenth as far apart from 0.3 of the tile's span, all between the tile's, where it tried forwards at the tile's
-    # pixels only (D103)
+    # pixels only
     for scale, start in ((3, 0), (0.1, 0.6)):
         dataset = dkist.load_dataset(path)[1, 1]
         temporal = dataset.wcs.forward_transform.right
@@ -795,7 +795,7 @@ def test_a_mosaic_s_tiles_link_to_its_first_tile_left_once_its_center_tile_is_re
         viewer.add_data(tile)
     dc.remove(tiles[4])
     # its first tile is their center, linked to each other tile, where every link went with the center tile and the
-    # tiles' layers but the reference's were disabled (D102, user 2026-10-22)
+    # tiles' layers but the reference's were disabled
     rest = tiles[:4] + tiles[5:]
     assert {frozenset((link.data1, link.data2)) for link in dc.external_links} == {
         frozenset((rest[0], tile)) for tile in rest[1:]
@@ -897,7 +897,7 @@ def viewed(app):
 
 @small_visp_dated_2044
 def test_a_session_restores_dkist_datasets_and_their_image_and_profile_viewers(app, qtbot, monkeypatch, tmp_path):
-    # D102: glue saved no `DKISTWCS`, of a gWCS, and restored a `DKISTData` as a Data, of glue's color limits
+    # glue saved no `DKISTWCS`, of a gWCS, and restored a `DKISTData` as a Data, of glue's color limits
     from dkist.io.dask.loaders import AstropyFITSLoader
 
     from gwcs import WCS as GWCS
@@ -938,7 +938,7 @@ def test_a_session_restores_dkist_datasets_and_their_image_and_profile_viewers(a
         assert dict(data.meta) == dict(visp.meta)  # its rest wavelength, and its headers' band, line and air or vacuum
         np.testing.assert_array_equal(np.asarray(data["data"]), np.asarray(visp["data"]))
         expected = np.asarray(visp["data"])[1]
-        with monkeypatch.context() as patch:  # its views read from its files, as before saving, not by dask (D103)
+        with monkeypatch.context() as patch:  # its views read from its files, as before saving, not by dask
             patch.setattr(AstropyFITSLoader, "__getitem__", lambda *args: pytest.fail("read by dask"))
             np.testing.assert_array_equal(data[data.main_components[0], 1], expected)
         assert limit(data) == limit(visp)
@@ -1034,7 +1034,7 @@ def test_iris_points_reach_a_dkist_raster_at_its_step_and_slit_pixel_and_back(
     dc.extend([sji, iris_raster, raster])
     link_iris(app.session, dc)
     # it reaches the raster, where glue inverted the raster's coordinates from one world value per axis, not its time,
-    # and the point was incompatible (D102, `_SlitAt`)
+    # and the point was incompatible (`_SlitAt`)
     assert point(sji, (10, 20, 18), raster) == reached
     quicklook_point = PixelSubsetState(iris_raster, [slice(5, 6), slice(20, 21), slice(None)])  # at every wavelength
     assert quicklook_point._to_linked_pixel_coords(raster) == reached
@@ -1068,7 +1068,7 @@ def test_an_iris_point_past_half_a_step_beyond_a_dkist_raster_s_end_does_not_rea
             edge, next_ = (np.array(describe.lon_lat(raster, (0, step, 400, 0))) for step in (end, inner))
             place = edge + off * (edge - next_)
             sji.coords.pointing_offset = tuple(float(a - b) for a, b in zip(place, unshifted))
-            # within half a step it reaches that step, and past it none, as the quicklook's no match (D7), where it
+            # within half a step it reaches that step, and past it none, as the quicklook's no match, where it
             # reached a step off the raster up to one step beyond
             if off < 0.5:
                 assert point(sji, (10, 20, 18), raster) == [None, end, None, 0]
@@ -1089,9 +1089,9 @@ def test_an_iris_point_reaches_a_dkist_raster_with_repeats_at_the_step_whose_sli
     dc = app.data_collection
     dc.extend([sji, raster])
     link_iris(app.session, dc)
-    # the step whose slit passes nearest, in the repeat nearest in time, where glue placed it by its time alone (D102)
+    # the step whose slit passes nearest, in the repeat nearest in time, where glue placed it by its time alone
     assert point(sji, (10, 20, 18), raster) == [None, 2, 0, 4, None]
-    # and none a step east of its first, 3 slit-jaw pixels, 0.5", past half a step (D7)
+    # and none a step east of its first, 3 slit-jaw pixels, 0.5", past half a step
     with pytest.raises(IncompatibleAttribute):
         point(sji, (10, 20, 15), raster)
     for using in [link.get_using() for link in dc.links if isinstance(link.get_using(), _SlitAt)]:  # saved in sessions
@@ -1111,8 +1111,8 @@ def test_an_iris_point_reaches_a_dkist_raster_of_one_step_with_repeats_within_ha
     dc = app.data_collection
     dc.extend([sji, raster])
     link_iris(app.session, dc)  # where it raised IndexError
-    # at the repeat nearest in time and the slit pixel level with it, up to half a slit pixel, 0.25", beside its slit
-    # (D7, D102); its step None, as glue leaves an axis of one pixel free
+    # at the repeat nearest in time and the slit pixel level with it, up to half a slit pixel, 0.25", beside its slit;
+    # its step None, as glue leaves an axis of one pixel free
     for beside in (0, 0.2):
         sji.coords.pointing_offset = (lon + beside, lat)
         assert point(sji, (10, 20, 18), raster) == [None, 2, None, 4, None]
@@ -1140,7 +1140,7 @@ def test_a_linked_dkist_raster_with_repeats_s_point_moves_to_the_step_at_the_pla
         app.session.edit_subset_mode.edit_subset = [group]
         point = PixelSubsetState(data, [*(slice(i, i + 1) for i in at), slice(None)])
         app.session.command_stack.do(ApplySubsetState(data_collection=collection, subset_state=point))
-    # at its repeat, the step whose slit passes nearest, 0, where it kept its step 1 (D97, D102)
+    # at its repeat, the step whose slit passes nearest, 0, where it kept its step 1
     assert [s.start for s in theirs.subset_state.slices] == [0, 2, 0, 4, None]
 
 
@@ -1158,7 +1158,7 @@ def observed(label, sizes, along, world, inverse, by):
     A `DKISTData` as `dkist_data` loads one, of numpy axes of ``sizes`` by name, which name its pixel axes, of values
     numbering its pixels, each world axis along its named axes ``along``: 'lon' and 'lat' (arcsec), 'wave' (nm), 'time'
     (unix s) and 'stokes', at the pixels by name ``world`` gives, and ``inverse`` the other way; each frame (its last two
-    axes) of its world time; observed by ``by``, its instrument and observing program execution (D105).
+    axes) of its world time; observed by ``by``, its instrument and observing program execution.
     """
     axes, kinds = list(sizes), list(along)
     wcs = SimpleNamespace(
@@ -1197,7 +1197,7 @@ def visp_like(
     arcsec and 10 s apart from unix ``start`` s along a slit of 10 pixels of 0.5", at 25 wavelengths ``spacing`` nm
     apart from ``wave_start`` nm; ``repeats`` of it 30 s apart, if more than one, on an axis after Stokes, as
     CZKPML's, each ``drift`` arcsec west of the last; with ``inverse`` its inverse, which takes the step and repeat from
-    the time, as dkist's gWCS; with ``meta``, its headers' keys as `dkist_data` keeps them (D107).
+    the time, as dkist's gWCS; with ``meta``, its headers' keys as `dkist_data` keeps them.
     """
     repeat = {"repeat": repeats} if repeats > 1 else {}
     data = observed(
@@ -1289,7 +1289,7 @@ def test_a_dkist_raster_s_quicklook_shows_its_context_imager_s_mosaic_slit_and_p
         return buffer(data, bounds, *args, **kwargs)
 
     monkeypatch.setattr(DKISTData, "compute_fixed_resolution_buffer", frames)
-    # the VBI mosaic observed with the raster, in one panel, as IRIS's slit-jaw images (D105)
+    # the VBI mosaic observed with the raster, in one panel, as IRIS's slit-jaw images
     viewers = quicklook(app, [raster])
     panel = viewers["imager"]
     assert [viewer.state.title for viewer in viewers["rows"][0]] == [
@@ -1337,7 +1337,7 @@ def test_a_dkist_raster_s_quicklook_shows_its_context_imager_s_mosaic_slit_and_p
     assert (coord.point.reference_data, [s.start for s in coord.point.slices]) == (raster, clicked)
     assert "outside raster FOV" in readout(panel)
     # a click on the north tile, 204" north, moves the point to the raster's step and slit pixel there, the frame
-    # clicked staying, where only the center tile's clicks counted (D109)
+    # clicked staying, where only the center tile's clicks counted
     select_point(panel, 10, 20)
     assert [s.start for s in coord.point.slices] == [0, 1, 8, None]
     qtbot.wait(100)
@@ -1348,7 +1348,7 @@ def test_a_dkist_raster_s_quicklook_shows_its_context_imager_s_mosaic_slit_and_p
     app._actions["undo"].trigger()
     qtbot.waitUntil(lambda: panel.state.slices[0] == 2, timeout=60_000)
     assert [s.start for s in coord.point.slices] == [0, 1, 8, None]
-    # Follow/lock's hover and lock click on the north tile move it there too (D109)
+    # Follow/lock's hover and lock click on the north tile move it there too
     follow(panel)
     hover(qtbot, panel, 8, 8)
     assert [s.start for s in coord.point.slices] == clicked
@@ -1404,7 +1404,7 @@ def test_a_dkist_raster_s_steps_follow_its_context_imager_s_frames_in_time_at_it
     slide(panel, 0, 2)
     qtbot.waitUntil(lambda: coord.point.slices[2].start == 2, timeout=60_000)
     # at repeat 1, the raster's step of it nearest the frame, none within half a step's cadence of 18 s, and 4, 36 s,
-    # step 1, 40 s (D105)
+    # step 1, 40 s
     point(1, 2)
     qtbot.wait(100)
     assert readout(viewers["map"]).endswith("NO MATCH Δt = +12.0 s")
@@ -1418,7 +1418,7 @@ def test_a_dkist_raster_s_steps_follow_its_context_imager_s_frames_in_time_at_it
     qtbot.waitUntil(lambda: panel.state.slices[0] == 6, timeout=60_000)
     assert readout(panel).endswith("Δt +4.0 s")
     assert readout(viewers["map"]).endswith(leads())
-    # and after Clear point its repeat slider, to repeat 0's step 2, 20 s, frame 2, where no time sync ran (D22)
+    # and after Clear point its repeat slider, to repeat 0's step 2, 20 s, frame 2, where no time sync ran
     menu_action(viewers["map"], "Clear point").trigger()
     qtbot.wait(100)
     slide(viewers["map"], 1, 0)
@@ -1432,7 +1432,7 @@ def test_a_click_on_a_sit_and_stare_raster_s_context_image_takes_the_step_neares
     from glue_solar.tests.test_quicklook import readout
 
     app = bare_app_for(qtbot, monkeypatch)
-    # 3 steps 0.01" and 10 s apart, sit-and-stare (D102), and 8 VBI frames 9 s apart, of a mosaic's center tile and its
+    # 3 steps 0.01" and 10 s apart, sit-and-stare, and 8 VBI frames 9 s apart, of a mosaic's center tile and its
     # north tile, 5" north, 9 s later and 1" further north each frame
     raster, imager = visp_like(step=0.01), vbi_like("VBI MOSAIC (1, 1)", frames=8)
     north = vbi_like("VBI MOSAIC (1, 2)", north=5, later=9, frames=8, drift=1)
@@ -1443,7 +1443,7 @@ def test_a_click_on_a_sit_and_stare_raster_s_context_image_takes_the_step_neares
     viewers = quicklook(app, [raster])
     panel, coord = viewers["imager"], coordinator(app.data_collection)
     # at frame 2, 18 s, step 2, 20 s, on the slit and beside it, at the slit pixel level with the click, as on IRIS's
-    # slit-jaw images, where it took a step by the slits' offsets or found the click outside the raster (D7, D105)
+    # slit-jaw images, where it took a step by the slits' offsets or found the click outside the raster
     slide(panel, 0, 2)
     for x, y, slit in ((8, 8, 2), (7, 12, 4)):
         select_point(panel, x, y)
@@ -1454,7 +1454,7 @@ def test_a_click_on_a_sit_and_stare_raster_s_context_image_takes_the_step_neares
     assert [s.start for s in coord.point.slices] == [0, 2, 4, None]
     assert "outside raster FOV" in readout(panel)
     # on the north tile at frame 1, 9 s, through its own coordinates at its frame nearest that time, 0, 9 s: step 1,
-    # 10 s, at the slit pixel level with the click, 204" (D109)
+    # 10 s, at the slit pixel level with the click, 204"
     slide(panel, 0, 1)
     select_point(panel, 8, 20)
     assert [s.start for s in coord.point.slices] == [0, 1, 8, None]
@@ -1507,14 +1507,14 @@ def test_go_to_utc_and_blink_move_a_context_image_along_its_steps(qtbot, monkeyp
     viewer = app.new_data_viewer(ImageViewer, data=imager)
     viewer.state.slices = (0, 1, 0, 0)
     # with no time master shown, Go to UTC starts at the step shown and moves the step slider, where it read and moved
-    # the Stokes slider (D38, D105)
+    # the Stokes slider
     times = imager[imager.id["Time"], (0, slice(None), 0, 0)]
     opened = type_in_dialog(monkeypatch, str(times[2]))
     menu_action(viewer, "Go to UTC…").trigger()
     assert opened == [np.datetime_as_string(times[1], unit="ms")]
     assert viewer.state.slices[:2] == (0, 2)
     # a blink to it from its raster at step 0, the time master, shows it at its step nearest that time, at its own Stokes
-    # parameter, where it took that step for its Stokes parameter (D41)
+    # parameter, where it took that step for its Stokes parameter
     viewer.state.slices = (1, 2, 0, 0)
     viewer.add_data(raster)
     menu_action(viewer, "Set blink partner here").trigger()
@@ -1581,7 +1581,7 @@ def test_a_cryo_nirsp_context_image_takes_its_spectrograph_s_step_stokes_paramet
     app.data_collection.extend([raster, imager])
     viewers = quicklook(app, [raster])
     panel, tool = viewers["imager"], viewers["imager"].toolbar.tools["solar:coordinate"]
-    # its step, Stokes parameter and measurement as the raster's sliders give them, where it had no panel (D105)
+    # its step, Stokes parameter and measurement as the raster's sliders give them, where it had no panel
     assert panel.state.slices[:3] == (0, 1, 0)
     slide(viewers["map"], 0, 1)
     slide(viewers["map"], 2, 1)
@@ -1593,7 +1593,7 @@ def test_a_cryo_nirsp_context_image_takes_its_spectrograph_s_step_stokes_paramet
     assert np.round(tool._slit.get_xydata(), 6).tolist() == [[4, 1.5], [4, 7.5]]
     assert np.round(tool._marker.get_xydata(), 6).tolist() == [[4, 5]]
     # F steps the raster, which leads the time, round from its last step, and Space plays its steps, where they moved
-    # and played its Stokes parameter, its first axis (D39)
+    # and played its Stokes parameter, its first axis
     press(viewers["map"], Qt.Key_F)
     qtbot.waitUntil(lambda: panel.state.slices[:3] == (1, 0, 1), timeout=60_000)
     assert [s.start for s in coordinator.point.slices[:3]] == [1, 0, 1]
@@ -1601,7 +1601,7 @@ def test_a_cryo_nirsp_context_image_takes_its_spectrograph_s_step_stokes_paramet
     [playing] = [s for s in viewers["slit"].options_widget().slice_helper._sliders if s and s._play_timer.isActive()]
     assert playing is viewers["slit"].options_widget().slice_helper._sliders[1]
     press(viewers["map"], Qt.Key_Space)
-    # after Clear point the raster still leads, from its virtual slit's step slider, its time axis's (D22); and the
+    # after Clear point the raster still leads, from its virtual slit's step slider, its time axis's; and the
     # context image leading the time, its step slider moves the raster's
     menu_action(viewers["map"], "Clear point").trigger()
     for leader, follower in ((viewers["slit"], panel), (panel, viewers["slit"])):
@@ -1615,7 +1615,7 @@ def test_a_cryo_nirsp_context_image_takes_its_spectrograph_s_step_stokes_paramet
     qtbot.waitUntil(lambda: panel.state.slices[:3] == (0, 2, 0), timeout=60_000)
     assert readout(viewers["map"]).endswith("Δt +0.0 s")
     # turned off and on again in the Panels list, it comes back at the step nearest the point's, moved meanwhile, and
-    # leads from there, where its old step took the point back (D66)
+    # leads from there, where its old step took the point back
     panels = panels_list(app)
     applied(app, qtbot, viewers, panels, lambda: tick(panels, "CRYO-NIRSP CI", on=False))
     coordinator.group.subset_state = PixelSubsetState(raster, [*map(slice, (0, 0, 0, 3), (1, 1, 1, 4)), slice(None)])
@@ -1629,7 +1629,7 @@ def test_a_session_restores_a_dkist_raster_s_quicklook_with_its_context_imager(q
     from glue_solar.sources import dkist
 
     # dkist's small ViSP raster and test VBI mosaic as if observed together: of one program execution, the raster's
-    # frame times from the mosaic's first (D105)
+    # frame times from the mosaic's first
     load = dkist._data
 
     def together(dataset, label):
@@ -1687,7 +1687,7 @@ def test_dkist_data_label_dkist_s_lines_in_air_or_vacuum_as_their_headers_say(ap
     headers = dkist.load_dataset(small_visp()).headers
     assert load_data(str(small_visp())).meta == {key: headers[key][0] for key in ("WAVEBAND", "LINEWAV", "WAVEREF")}
     # about Ca II 854.2 nm: DKIST's line in air, as the headers say, where IRIS's lines labeled none, its Doppler
-    # velocity from it, and in vacuum (D107)
+    # velocity from it, and in vacuum
     raster = visp_like(wave_start=854.0, spacing=0.02, WAVEREF="Air")
     app.data_collection.append(raster)
     viewer = app.new_data_viewer(ProfileViewer, data=raster)
@@ -1722,7 +1722,7 @@ def test_a_full_stokes_dkist_raster_s_quicklook_scales_q_u_and_v_by_their_noise_
     app.data_collection.extend([raster, vbi_like("VBI", frames=8)])
     viewers = quicklook(app, [raster])
     # as an SST cube's (#307): the noise level of Q, U and V at the quieter end, shaded on their spectra, and their
-    # maps at 5 times it for Q and U and 10 for V, where glue's 99.5% of the whole raster showed them flat (D107)
+    # maps at 5 times it for Q and U and 10 for V, where glue's 99.5% of the whole raster showed them flat
     noise = [min(mad_std(values[k, :, :, end]) for end in (0, -1)) for k in (1, 2, 3)]
     bands = [[p for p in viewer.axes.patches if p.get_gid() == "solar:noise"] for viewer in viewers["spectra"]]
     assert [[(band.get_y(), band.get_y() + band.get_height()) for band in shown] for shown in bands] == [
@@ -1752,7 +1752,7 @@ def test_a_full_stokes_dkist_raster_s_quicklook_scales_q_u_and_v_by_their_noise_
         other.update_components({other.main_components[0]: values})
         assert other._noise == {k: pytest.approx(mad_std(values[k, :, :, -1])) for k in (1, 2, 3)}
     # from up to 4 frames evenly spaced: of 4 repeats of 3 steps, repeats 1 and 3 at step 1, where 16 frames' files
-    # took 0.28 s to open on TXIPCV (D109)
+    # took 0.28 s to open on TXIPCV
     repeated = visp_like(repeats=4, stokes=4)
     values = rng.normal(0, 1, repeated.shape)
     repeated.update_components({repeated.main_components[0]: values})
@@ -1818,7 +1818,7 @@ def stitched(app, qtbot, tile):
 def test_mosaic_stitches_a_dkist_mosaic_s_tiles_at_the_frame_shown_into_an_image_linked_to_them(qtbot, monkeypatch):
     app = bare_app_for(qtbot, monkeypatch)
     # two tiles of 20 by 20 pixels of 0.25", the north one 4" north, overlapping the center one by 4 rows, its frames
-    # 6 s later, 9 s apart, linked as glue suggests (D102)
+    # 6 s later, 9 s apart, linked as glue suggests
     center, north = vbi_tile("VBI MOSAIC (1, 1)"), vbi_tile("VBI MOSAIC (1, 2)", north=4, later=6)
     center._mosaic = north._mosaic = [center, north]
     north._center = center
@@ -1837,7 +1837,7 @@ def test_mosaic_stitches_a_dkist_mosaic_s_tiles_at_the_frame_shown_into_an_image
     monkeypatch.setattr(DKISTData, "get_data", read)
     image = stitched(app, qtbot, center)
     # the frame the viewer shows of each tile, only, on one grid of their pixels, labeled by their mean time there, 21 s
-    # from the first frame's, and opened in an Image viewer (D108)
+    # from the first frame's, and opened in an Image viewer
     frame = (2, slice(None), slice(None))
     assert reads == [("VBI MOSAIC (1, 1)", frame), ("VBI MOSAIC (1, 2)", frame)]
     assert (image.label, image.meta["DATE-AVG"]) == ("VBI MOSAIC mosaic 2023-11-14T22:13:41", "2023-11-14T22:13:41.000")
@@ -1846,7 +1846,7 @@ def test_mosaic_stitches_a_dkist_mosaic_s_tiles_at_the_frame_shown_into_an_image
         "custom:pos.helioprojective.lat",
     ]
     assert image.shape == (36, 20)
-    # at 99.5 % limits, where glue's Min/Max, of a few hot pixels, showed it flat (D109)
+    # at 99.5 % limits, where glue's Min/Max, of a few hot pixels, showed it flat
     shown = app.viewers[0][-1].state
     assert (shown.reference_data, shown.layers[0].percentile) == (image, 99.5)
     # each tile's pixel at that frame reaches the mosaic where its value is, the mean of both where they overlap
@@ -1903,7 +1903,7 @@ def test_mosaic_of_dl_nirsp_tiles_is_at_their_stokes_parameter_repeat_and_wavele
     viewer = app.new_data_viewer(ImageViewer, data=tiles[1])
     viewer.state.slices = (1, 1, 2, 0, 0)  # Stokes Q, the second repeat, the third wavelength
     image = stitched(app, qtbot, tiles[1])
-    # labeled by its wavelength, Stokes parameter and time, which its meta holds (D108)
+    # labeled by its wavelength, Stokes parameter and time, which its meta holds
     assert image.label == "DL-NIRSP TILES mosaic 1083.020 nm Q 2023-11-14T22:18:20"
     assert image.meta == {"DATE-AVG": "2023-11-14T22:18:20.000", "WAVELNTH": pytest.approx(1083.02), "STOKES": "Q"}
     assert image.shape == (10, 20)
@@ -2131,7 +2131,7 @@ def test_frame_quality_plots_a_dkist_dataset_s_frames_from_its_headers_against_t
     frame_quality_dkist(cryo, app.data_collection)
     frames, profile = app.data_collection[-1], app.viewers[0][-1]
     # a row per FITS file, in time order, its headers' seeing, AO lock (1 while locked), exposure, light level and
-    # elevation, and time, none of its files present (D110)
+    # elevation, and time, none of its files present
     headers = dkist.load_dataset(path).headers
     times = np.array(headers["DATE-AVG"], dtype="datetime64[ns]")
     order = np.argsort(times, kind="stable")
@@ -2179,7 +2179,7 @@ def test_frame_quality_and_its_dataset_s_time_sliders_follow_each_other(app, qtb
     frame_quality_dkist(cryo, app.data_collection)
     profile = app.viewers[0][-1]
     # a line at the frame shown, in s since the first: steps 180 s apart, measurements 10 s; and it follows the
-    # sliders (D110)
+    # sliders
     assert frame_line(profile) == 200
     viewer.state.slices = (2, 2, 0, 0, 0)
     assert frame_line(profile) == 360
@@ -2228,7 +2228,7 @@ def test_frame_quality_of_a_mosaic_s_tile_follows_its_center_tile_s_viewer_by_ti
     x, times = frames[profile.state.x_att], frames["Time"]
     centers = tiles[4]._frames[0]
     # the line at the tile's frame nearest the center tile's shown, and a click moves the center tile's slider to its
-    # frame nearest the tile's clicked (D110)
+    # frame nearest the tile's clicked
     for frame in (2, 1):
         viewer.state.slices = (frame, 0, 0)
         assert frame_line(profile) == x[np.argmin(abs(times - centers[frame]))]
@@ -2365,7 +2365,7 @@ def test_download_these_frames_sends_the_fits_files_chosen_alone_into_the_asdf_f
     app.data_collection.extend(tiles)
     app.new_data_viewer(ImageViewer, data=tiles[len(tiles) // 2]).state.slices = slices
     opened, transfer = download(app, qtbot, monkeypatch, tiles[0], typed)
-    # the dialog's defaults, and the files' count, size and times (D110)
+    # the dialog's defaults, and the files' count, size and times
     assert opened == defaults
     # one transfer of those files alone, from the dataset's place, into the ASDF file's folder, in the background:
     # not dkist's ASDF file, browse movie and quality report too (`FileManager.download`)
@@ -2461,7 +2461,7 @@ def test_a_mosaic_s_tiles_keep_one_color_limits_as_a_download_s_files_arrive(app
         shutil.copy(small_visp().parent / name, tmp_path)
     with pytest.warns(UserWarning, match="5 of 6 files"):
         qtbot.waitUntil(lambda: app.statusBar().currentMessage() == "VISP qVXjk: 2 of 2 files downloaded")
-    # both tiles' limits taken again from their one sample, its frames' now too, as a mosaic's are synced (D102)
+    # both tiles' limits taken again from their one sample, its frames' now too, as a mosaic's are synced
     first, second = (layer.state for layer in viewer.layers)
     assert (second.v_min, second.v_max) == (first.v_min, first.v_max)
 

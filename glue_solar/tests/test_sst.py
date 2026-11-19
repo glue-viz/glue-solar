@@ -166,8 +166,8 @@ def _mapped(values):
 
 
 def test_file_open_gives_the_cube_alone_memory_mapped(tmp_path):
-    # SST12: not glue's 33 datasets, the WCSDVARR image and empty ones for the WCS-TAB and VAR-EXT tables; a cube of
-    # intensities without its Stokes axis of length 1 (227-1), the VAR-EXT tables as metadata (227-3)
+    # not glue's 33 datasets, the WCSDVARR image and empty ones for the WCS-TAB and VAR-EXT tables; a cube of
+    # intensities without its Stokes axis of length 1, the VAR-EXT tables as metadata
     path = tmp_path / "nb_6563_scans=0-2_im.fits"
     write_sst_cube(path)
     data = load_data(str(path))  # File → Open Data Set's choice of reader
@@ -189,9 +189,9 @@ def test_file_open_gives_the_cube_alone_memory_mapped(tmp_path):
     stokes = sst_data(tmp_path / "stokes.fits")
     assert stokes.shape == (3, 4, 5, 12, 16)
     assert stokes.meta["VAR-EXT"]["DATE-AVG"].shape == (3, 1, 5, 1, 1)
-    assert data.meta["SPECSYS"] == "TOPOCENT"  # SST2: astropy needs one beside OBSGEO
+    assert data.meta["SPECSYS"] == "TOPOCENT"  # astropy needs one beside OBSGEO
     assert describe.role(data) == "sst"
-    assert describe.timed(data)  # in the time sync of the SST cubes whose scans lie within a cadence of its own (230-9)
+    assert describe.timed(data)  # in the time sync of the SST cubes whose scans lie within a cadence of its own
 
 
 def test_time_and_wavelengths_are_the_table_s_at_every_pixel(tmp_path):
@@ -201,7 +201,7 @@ def test_time_and_wavelengths_are_the_table_s_at_every_pixel(tmp_path):
     data = sst_data(path)
     times = np.datetime64(DATEREF, "ns") + np.round(coord[:, :, 0, 0, 3] * 1e9).astype("timedelta64[ns]")
     np.testing.assert_array_equal(data["Time"], np.broadcast_to(times[:, :, None, None], data.shape))
-    # each scan's and tuning's, as the file's DATE-AVG table gives it (227-3)
+    # each scan's and tuning's, as the file's DATE-AVG table gives it
     dates = data.meta["VAR-EXT"]["DATE-AVG"].astype("datetime64[ns]")
     np.testing.assert_array_equal(data["Time"], np.broadcast_to(dates, data.shape))
     seconds, wavelength, lat, lon = data.world_component_ids
@@ -214,7 +214,7 @@ def test_time_and_wavelengths_are_the_table_s_at_every_pixel(tmp_path):
 
 def test_the_cavity_error_is_each_tuning_s_map(tmp_path):
     # CHROMIS's Ca II H & K cube has a map for each prefilter, by tuning, and none for its continuum tuning, where the
-    # nominal wavelength is the one to take (227-10)
+    # nominal wavelength is the one to take
     path = tmp_path / "cube.fits"
     write_sst_cube(path, shape=(2, 1, 7, 4, 5), prefilters=[range(3), range(3, 6)])
     data = sst_data(path)
@@ -267,13 +267,13 @@ def test_the_inverse_is_wcslib_s_inside_the_table_and_takes_the_line_core_outsid
 
 
 def test_the_line_core_is_the_tuning_nearest_the_line_nearest_wavelnth():
-    # 227-4: tunings of the SST archive's cubes, whose WAVELNTH is the prefilter's; the middle tuning of obs 495's Ca II
+    # tunings of the SST archive's cubes, whose WAVELNTH is the prefilter's; the middle tuning of obs 495's Ca II
     # H & K cube is in Ca II H, but the line nearest its WAVELNTH is Ca II K
     chromis = [393.2674, 393.3675, 393.5326, 396.7562, 396.8415, 396.9, 399.9]
     assert _line_core(chromis, 395.0) == 1  # 393.3675 nm, Ca II K
     fe = [630.1883, 630.2183, 630.2363, 630.2483, 630.2543, 630.2783, 630.3083]
     assert _line_core(fe, 630.26) == 3  # 630.2483 nm, Fe I 630.25, the one of the two within the tunings
-    # 232-1: the line's NIST air wavelength, not redshifted by the Sun's gravity to 393.3671 nm
+    # the line's NIST air wavelength, not redshifted by the Sun's gravity to 393.3671 nm
     assert _line_core([393.3660, 393.3672], 395.0) == 0  # Ca II K at 393.3663 nm
     # obs 492 Ca II 8542's 21 tunings, 9 and 10 each 3.0 pm from Ca II 854.2091 nm: the middle one, 10, not WAVELNTH's
     crisp = np.r_[853.9720965796, 854.1580965796 + 0.006 * np.arange(19), 854.4520965796]
@@ -298,7 +298,7 @@ def _views(monkeypatch):
 
 
 def test_color_limits_sample_evenly_spaced_planes_rows_and_columns(monkeypatch, tmp_path):
-    # SST10: glue's 10,000 random values each lie on another page of the file
+    # glue's 10,000 random values each lie on another page of the file
     write_sst_cube(tmp_path / "cube.fits", (2, 1, 23, 49, 97))
     cube, values = sst_data(tmp_path / "cube.fits"), fits.getdata(tmp_path / "cube.fits")
 
@@ -334,7 +334,7 @@ def test_color_limits_sample_evenly_spaced_planes_rows_and_columns(monkeypatch, 
 
 @pytest.mark.parametrize("stokes", [1, 4])
 def test_color_limits_of_a_line_are_glue_s_when_15_divides_the_scans(monkeypatch, tmp_path, stokes):
-    # D73: planes evenly spaced over the scan, Stokes and tuning together were each the first or last tuning, and the
+    # planes evenly spaced over the scan, Stokes and tuning together were each the first or last tuning, and the
     # line-core map opened black
     path, shape = tmp_path / "cube.fits", (30, stokes, 13, 40, 40)
     write_sst_cube(path, shape)
@@ -356,7 +356,7 @@ def test_color_limits_of_a_line_are_glue_s_when_15_divides_the_scans(monkeypatch
     assert [len(np.unique(index)) for index in plane] == ([16, 4, 13] if stokes == 4 else [16, 13])
     if stokes == 4:
         assert plane[1].ravel().tolist() == [0, 1, 2, 3] * 4  # the Stokes parameters in turn
-        # U's noise level from the same scans, rows and columns, all at the continuum (F173)
+        # U's noise level from the same scans, rows and columns, all at the continuum
         u = cube._sample(10000, 2, 12)
         assert [u[1].ravel().tolist(), u[2].ravel().tolist()] == [[2] * 16, [12] * 16]
         for axis in (0, 3, 4):
@@ -365,7 +365,7 @@ def test_color_limits_of_a_line_are_glue_s_when_15_divides_the_scans(monkeypatch
 
 @pytest.mark.parametrize("stokes", [1, 4])
 def test_reads_of_the_file_ask_for_every_page_they_read_first(monkeypatch, tmp_path, stokes):
-    # D100: a cold file's pages came one fault at a time, 0.36-0.54 s an SST quicklook's scan step on Linux
+    # a cold file's pages came one fault at a time, 0.36-0.54 s an SST quicklook's scan step on Linux
     path, page, hinted, read = tmp_path / "cube.fits", mmap.PAGESIZE, set(), set()
     write_sst_cube(path, (2, stokes, 6, 30, 1100))  # planes of 132 KB, rows of 4400 bytes
 
@@ -417,7 +417,7 @@ def test_reads_of_the_file_ask_for_every_page_they_read_first(monkeypatch, tmp_p
 
 @pytest.mark.parametrize("stokes", [1, 4])
 def test_a_dense_view_reads_each_plane_s_band_and_a_sparse_one_the_map_s_pages(monkeypatch, tmp_path, stokes):
-    # GLUE_SPEED.md 2026-10-31: the full virtual slit of a 13 GB cube took 2.2-3.1 s cold over USB through the map's
+    # the full virtual slit of a 13 GB cube took 2.2-3.1 s cold over USB through the map's
     # pages, hinted or not, where reading each tuning plane's band took 0.47 s
     path, banded, hinted = tmp_path / "cube.fits", [], []
     # rows of 6.4 KB, a page or two on either page size, so every row's pages run together as a real cube's 7 KB rows do
@@ -444,7 +444,7 @@ def test_a_dense_view_reads_each_plane_s_band_and_a_sparse_one_the_map_s_pages(m
 
 
 def test_the_time_axis_is_named_scan_time(tmp_path):
-    """glue names an SST cube's time axis, its sliders' and axes', 'Scan Time', not SSTRED's sentence (D90)."""
+    """glue names an SST cube's time axis, its sliders' and axes', 'Scan Time', not SSTRED's sentence."""
     path = tmp_path / "cube.fits"
     write_sst_cube(path)
     names = ("Spatial X", "Spatial Y", "Wavelength", "Time since DATEREF, increases with dim. 3 and 5")
@@ -456,7 +456,7 @@ def test_the_time_axis_is_named_scan_time(tmp_path):
 
 
 def test_an_image_viewer_shows_a_cube_without_specsys(app, qtbot, tmp_path):
-    # SST2: astropy refuses an empty SPECSYS beside the observatory's place, and no viewer took the cube
+    # astropy refuses an empty SPECSYS beside the observatory's place, and no viewer took the cube
     path = tmp_path / "cube.fits"
     write_sst_cube(path, drift=(5.0, -3.0))
     data = app.load_data(str(path))  # File → Open Data Set
@@ -481,7 +481,7 @@ def test_a_table_of_more_points_than_the_field_s_corners_takes_wcslib_s_inverse(
 
 def test_glue_s_autolinker_leaves_the_table_s_celestial_axes_whole(tmp_path):
     # glue's autolinker took the celestial axes of a cube and a map, which wcslib cut out of the cube's table and
-    # crashed (SIGSEGV); with the cube first, glue 1.27's slicing of the two still fails, with a ValueError
+    # crashed (SIGSEGV); with the cube first, glue's slicing of the two still fails, with a ValueError
     write_sst_cube(tmp_path / "cube.fits")
     cube = sst_data(tmp_path / "cube.fits")
     assert not cube.coords.has_celestial
@@ -490,7 +490,7 @@ def test_glue_s_autolinker_leaves_the_table_s_celestial_axes_whole(tmp_path):
 
 
 def test_a_session_and_the_last_session_restore_a_cube_and_its_viewer(qtbot, monkeypatch, tmp_path):
-    # SST5: glue rebuilt the coordinates from their header alone, without their table ('HDUList is required')
+    # glue rebuilt the coordinates from their header alone, without their table ('HDUList is required')
     monkeypatch.setattr(glue.config, "CFG_DIR", str(tmp_path / ".glue"))  # glue's settings folder, not the user's
     path = tmp_path / "cube.fits"
     write_sst_cube(path, drift=(5.0, -3.0), roll=10.0, prefilters=[range(2), range(2, 5)], core=1)
@@ -546,7 +546,7 @@ def _sst_pixels(coord, lon, lat, when, shape, scale, roll):
 
 
 def test_link_hpc_links_a_map_or_an_sst_cube_only_when_named(tmp_path, sns):
-    # 226-3: called directly, link_hpc links IRIS data only, as loading data does, and the datasets ``others`` names
+    # called directly, link_hpc links IRIS data only, as loading data does, and the datasets ``others`` names
     sji, raster = sns
     lon, lat, _ = sji.coords.pixel_to_world_values(18, 20, 0)
     aia = _sunpy_map(lon, lat, 0.6, (80, 160), "aia", obstime=sji.meta["DATE_OBS"])
@@ -563,7 +563,7 @@ def test_link_hpc_links_a_map_or_an_sst_cube_only_when_named(tmp_path, sns):
 
 @pytest.mark.parametrize("stokes", [1, 4])
 def test_once_linked_an_sst_region_or_point_selects_the_iris_pixels_at_its_place(tmp_path, sns, stokes):
-    # D67: glue gave the cube's wavelength and time their CRVAL, 0, outside its table, which selected nothing; a mosaic's
+    # glue gave the cube's wavelength and time their CRVAL, 0, outside its table, which selected nothing; a mosaic's
     # pointing changes with each scan, so each SJI frame and raster exposure takes the scan nearest it
     sji, raster = sns
     frames = describe.times(sji, 0)
@@ -576,9 +576,9 @@ def test_once_linked_an_sst_region_or_point_selects_the_iris_pixels_at_its_place
     keep_hpc_linked(dc)
     roi = RectangularROI(10.3, 29.6, 6.2, 21.7)
     region = RoiSubsetState(xatt=cube.pixel_component_ids[-1], yatt=cube.pixel_component_ids[-2], roi=roi)
-    with pytest.raises(IncompatibleAttribute):  # D64: linked on request only
+    with pytest.raises(IncompatibleAttribute):  # linked on request only
         sji.get_mask(region)
-    assert not isinstance(cube.coords, _LockedWCS)  # 227-9: nor behind the WCS lock until then
+    assert not isinstance(cube.coords, _LockedWCS)  # nor behind the WCS lock until then
     keep_hpc_linked(dc, others=dc)  # 'Link helioprojective coordinates'
     assert isinstance(cube.coords, _LockedWCS)
     for data, mask in ((sji, sji.get_mask(region)), (raster, raster.get_mask(region)[..., 0])):
@@ -601,7 +601,7 @@ def test_once_linked_an_sst_region_or_point_selects_the_iris_pixels_at_its_place
         assert (inside(frames[0]) != expected).sum() >= 10  # not in the first scan's pointing throughout
     # glue's Pixel point, at the cube's first tuning: the raster's exposure and slit row nearest it, and in the slit-jaw
     # frame nearest its scan, the pixel there; at the first scan with the scan free, and at a scan's own pointing with
-    # it fixed, as the quicklook fixes it and any Stokes parameter, which reach no IRIS axis (D73)
+    # it fixed, as the quicklook fixes it and any Stokes parameter, which reach no IRIS axis
     exposure, slit = np.indices(raster.shape[:2])
     _, lats, lons = raster.coords.pixel_to_world_values(0, slit, exposure)
     quicklook_point = [slice(2, 3)] + [slice(1, 2)] * (stokes > 1)
@@ -650,7 +650,7 @@ def check_sst_panels(viewers, values, group):
 
 
 def test_the_sst_quicklook_shows_a_cube_in_its_panels(sst_app, qtbot, tmp_path):
-    # D68: the maps and the virtual slit on top, the spectra of I, Q, U and V below them, then wavelength against time
+    # the maps and the virtual slit on top, the spectra of I, Q, U and V below them, then wavelength against time
     # and the light curve at the point, every panel computing only the point
     cube, values = stokes_cube(tmp_path / "cube.fits")
     viewers = quicklook(sst_app, [cube])
@@ -663,7 +663,7 @@ def test_the_sst_quicklook_shows_a_cube_in_its_panels(sst_app, qtbot, tmp_path):
     ]
     assert set(sst_app.viewers[-1]) == {viewer for row in viewers["rows"] for viewer in row}
     pixel = cube.pixel_component_ids
-    # the map at the line core, H-alpha's tuning, the second map at the first, with per-frame limits (P9), the point at
+    # the map at the line core, H-alpha's tuning, the second map at the first, with per-frame limits, the point at
     # the map's center in scan 0 and Stokes I
     for role, x, y, tuning in (("map", 4, 3, 2), ("wing", 4, 3, 0), ("slit", 2, 3, 2), ("wavelength", 2, 0, 2)):
         state = viewers[role].state
@@ -681,7 +681,7 @@ def test_the_sst_quicklook_shows_a_cube_in_its_panels(sst_app, qtbot, tmp_path):
         assert layer.layer.group is not group
         assert layer.layer.data is cube
     np.testing.assert_allclose(viewers["spectra"][0].state.layers[0].profile[0], 656.28 + 0.01 * np.arange(-2, 3))
-    assert viewers["curve"].state.x_att is cube.world_component_ids[0]  # time, not an index (D90)
+    assert viewers["curve"].state.x_att is cube.world_component_ids[0]  # time, not an index
     check_sst_panels(viewers, values, group)
     # in rows, the Point window and the Panels list below them
     tops = [{viewer.parent().y() for viewer in row} for row in viewers["rows"]]
@@ -690,7 +690,7 @@ def test_the_sst_quicklook_shows_a_cube_in_its_panels(sst_app, qtbot, tmp_path):
     window = point_window(sst_app)
     assert window.parent().y() > viewers["curve"].parent().y()
     assert entries(panels_list(sst_app)) == [(title, True) for row in titles for title in row]
-    # the image panels without axes, until 'Hide axes' on one shows them all (D71, D83); the spectra and light curve
+    # the image panels without axes, until 'Hide axes' on one shows them all; the spectra and light curve
     # keep theirs
     images = [viewers[role] for role in ("map", "wing", "slit", "wavelength")]
     profiles = [*viewers["spectra"], viewers["curve"]]
@@ -710,8 +710,8 @@ def test_the_sst_quicklook_shows_a_cube_in_its_panels(sst_app, qtbot, tmp_path):
     slide(viewers["map"], 2, 4)
     qtbot.wait(20)
     check_sst_panels(viewers, values, group)
-    # a cube of intensities, without a Stokes axis (227-1), has one spectrum, the '&' of CHROMIS's line not a shortcut in
-    # Qt's titles; its maps open at its line core (227-4), here its second tuning, and at the scan of the time the other
+    # a cube of intensities, without a Stokes axis, has one spectrum, the '&' of CHROMIS's line not a shortcut in
+    # Qt's titles; its maps open at its line core, here its second tuning, and at the scan of the time the other
     # cube's quicklook left; one cube to a tab
     single, values = stokes_cube(tmp_path / "single.fits", shape=(3, 1, 5, 12, 16), line="Ca II H & K", core=1)
     viewers = quicklook(sst_app, [single])
@@ -739,7 +739,7 @@ def test_the_sst_quicklook_shows_a_cube_in_its_panels(sst_app, qtbot, tmp_path):
 
 
 def test_an_sst_cube_s_spectra_label_its_lines_in_air(sst_app, tmp_path):
-    # D107: an SST cube, without WAVEREF, takes the ground-based lines in air, as SSTRED's wavelengths are, where IRIS's
+    # an SST cube, without WAVEREF, takes the ground-based lines in air, as SSTRED's wavelengths are, where IRIS's
     # labeled none: on its spectra, in 'Lines in this range…', and as its rest wavelength, which gives it km / s
     cube, _ = stokes_cube(tmp_path / "cube.fits")
     spectrum = quicklook(sst_app, [cube])["spectra"][0]
@@ -757,7 +757,7 @@ def test_an_sst_cube_s_spectra_label_its_lines_in_air(sst_app, tmp_path):
 
 
 def test_a_path_typed_gives_the_diagram_of_the_same_path_clicked(sst_app, qtbot, monkeypatch, tmp_path):
-    # D99: 'Path from points…' takes vertices typed in the image's pixels, as clicks give them
+    # 'Path from points…' takes vertices typed in the image's pixels, as clicks give them
     cube, _ = stokes_cube(tmp_path / "cube.fits")
     toolbar = quicklook(sst_app, [cube])["map"].toolbar
     toolbar.tools["solar:path"]._open_or_update(np.array([2.0, 12.0]), np.array([3.0, 9.0]))
@@ -782,7 +782,7 @@ def test_a_path_typed_gives_the_diagram_of_the_same_path_clicked(sst_app, qtbot,
 
 
 def test_a_path_diagram_gives_the_cavity_error_at_its_samples(tmp_path):
-    # glue-core 1.27.0 reads the cube with index arrays, which the cavity error's dask refuses
+    # glue-core reads the cube with index arrays, which the cavity error's dask refuses
     cube, _ = stokes_cube(tmp_path / "cube.fits")
     x, y = cube.pixel_component_ids[4], cube.pixel_component_ids[3]
     path = PathData(cube, x, np.array([2.0, 12.0]), y, np.array([3.0, 9.0]))
@@ -790,7 +790,7 @@ def test_a_path_diagram_gives_the_cavity_error_at_its_samples(tmp_path):
 
 
 def test_both_maps_open_on_the_field(sst_app, tmp_path):
-    # P9: not a mosaic's NaN border, the field from the color limits' sample's rows read whole, 2 or 3 apart here: the
+    # not a mosaic's NaN border, the field from the color limits' sample's rows read whole, 2 or 3 apart here: the
     # field's rows 10 to 50 and columns 20 to 59 within a row step, never cropped
     path, rotated = tmp_path / "mosaic.fits", tmp_path / "rotated.fits"
     for each in (path, rotated):
@@ -830,7 +830,7 @@ def test_both_maps_open_on_the_field(sst_app, tmp_path):
 
 
 def test_q_u_and_v_show_scaled_with_their_noise_level(sst_app, qtbot, tmp_path):
-    # F173: Q and U at ±5 times their noise level, V at ±10, the noise level their spectra show about 0; 230-6: glue's
+    # Q and U at ±5 times their noise level, V at ±10, the noise level their spectra show about 0; glue's
     # 99.5% over the whole cube, I's values mostly, showed them flat
     path = tmp_path / "cube.fits"
     write_sst_cube(path, (3, 4, 5, 12, 16), core=1)  # the continuum is tuning 4, the farther end
@@ -890,7 +890,7 @@ def test_q_u_and_v_show_scaled_with_their_noise_level(sst_app, qtbot, tmp_path):
 
 
 def test_a_profile_viewer_adds_a_large_cube_hidden(sst_app, monkeypatch, tmp_path, sns):
-    # SST4: glue profiles a cube added to a Profile viewer on the main thread first, reading the whole file (30 s on obs
+    # glue profiles a cube added to a Profile viewer on the main thread first, reading the whole file (30 s on obs
     # 492 Ca II 8542); one of glue's large-data size or more, here any, that the IRIS reader did not read comes hidden
     cube, values = stokes_cube(tmp_path / "cube.fits")
     _, raster = sns
@@ -1028,7 +1028,7 @@ def test_a_path_diagram_of_a_stokes_cube_labels_its_wavelength_alone(sst_app, qt
 
 
 def test_the_spectra_and_curve_refit_as_the_point_moves_until_zoomed(sst_app, tmp_path):
-    # D98: the spectrum and light curve panels fit their y range to the point's profiles as it moves, until their x
+    # the spectrum and light curve panels fit their y range to the point's profiles as it moves, until their x
     # range is panned or zoomed; Home fits them again
     path = tmp_path / "cube.fits"
     write_sst_cube(path, (3, 1, 5, 12, 16))
@@ -1052,7 +1052,7 @@ def test_the_spectra_and_curve_refit_as_the_point_moves_until_zoomed(sst_app, tm
     assert move(5, 5)[0] == bright[0]
     spectrum.toolbar.actions["mpl:home"].trigger()
     assert move(5, 5)[0] == pytest.approx(faint[0])
-    assert move(2, 3)[0] == pytest.approx(bright[0])  # Home resumes the refits (D98)
+    assert move(2, 3)[0] == pytest.approx(bright[0])  # Home resumes the refits
     x = spectrum.state.x_min, spectrum.state.x_max
     for unit in ("Angstrom", "km / s", "nm"):  # glue converts the fit's x range to the unit picked: it still refits
         spectrum.state.x_display_unit = unit
@@ -1062,7 +1062,7 @@ def test_the_spectra_and_curve_refit_as_the_point_moves_until_zoomed(sst_app, tm
 
 
 def test_a_point_move_runs_the_spectrum_worker_once(sst_app, qtbot, monkeypatch, tmp_path):
-    # glue-qt 0.4.2 computes the spectrum of a cube of over 1e7 values on a worker, which glue 1.27.0 queues again if
+    # glue-qt 0.4.2 computes the spectrum of a cube of over 1e7 values on a worker, which glue queues again if
     # the spectrum's v_min and v_max change as it ends: two more 40 ms waits a scan step; the move sets them first
     monkeypatch.setattr(
         QThreadedProfileLayerArtist, "_calculate_profile", lambda self, reset=False: self._worker.work_queue.put(reset)
@@ -1097,7 +1097,7 @@ def test_a_point_move_runs_the_spectrum_worker_once(sst_app, qtbot, monkeypatch,
 
 
 def test_the_first_click_on_any_sst_panel_moves_the_point(sst_app, qtbot, tmp_path):
-    # each panel takes the Pixel tool as its window becomes active, as in the IRIS quicklook (D75)
+    # each panel takes the Pixel tool as its window becomes active, as in the IRIS quicklook
     cube, _ = stokes_cube(tmp_path / "cube.fits")
     sst_app.show()
     qtbot.waitUntil(sst_app.isActiveWindow)  # for a click to make its window the active one
@@ -1125,8 +1125,8 @@ def show_tab(app, qtbot, index):
 
 
 def test_two_sst_quicklooks_keep_one_time(sst_app, qtbot, tmp_path):
-    # D68: one cube to a tab, the SST cubes whose scan times overlap or lie within a cadence of each other in one time
-    # sync (230-9): the cube shown leads the time, and one shown next starts at its scan nearest that time, unless
+    # one cube to a tab, the SST cubes whose scan times overlap or lie within a cadence of each other in one time
+    # sync: the cube shown leads the time, and one shown next starts at its scan nearest that time, unless
     # within half the longer cadence of it; a cube from later in the day keeps its own
     write_sst_cube(tmp_path / "a.fits", (4, 1, 5, 12, 16), start=1200.0, cadence=60.0)  # 1200 to 1381 s
     write_sst_cube(tmp_path / "b.fits", (5, 1, 3, 10, 14), start=1170.0, cadence=50.0)  # 1170 to 1370.5 s
@@ -1165,9 +1165,9 @@ def test_two_sst_quicklooks_keep_one_time(sst_app, qtbot, tmp_path):
 
 
 def test_sst_cubes_link_without_iris_data_and_link_their_points(sst_app, qtbot, tmp_path):
-    # D97: with no IRIS data, linking anchors on the first cube, and with 'Link points across cubes' on, a point on
+    # with no IRIS data, linking anchors on the first cube, and with 'Link points across cubes' on, a point on
     # one cube moves the other quicklook's point of its observation to its place on the Sun, at that cube's own other
-    # slices, and that quicklook's own panels with it (D19)
+    # slices, and that quicklook's own panels with it
     write_sst_cube(tmp_path / "a.fits", (4, 1, 5, 12, 16), start=1200.0, cadence=60.0)
     # half the pixel size, its center 1.75 arcsec off in both: the first's pixel (11, 6) is its (10, 8)
     write_sst_cube(tmp_path / "b.fits", (5, 1, 3, 10, 14), center=(-53.25, -401.25), scale=0.5, start=1170.0)
@@ -1202,7 +1202,7 @@ def test_sst_cubes_link_without_iris_data_and_link_their_points(sst_app, qtbot, 
 
 
 def test_a_region_on_an_sst_cube_selects_its_place_on_another_linked_without_iris_data(tmp_path):
-    # D97: a cube's pointing moves with its scan, so glue places a region's x and y on it from its time too, which a
+    # a cube's pointing moves with its scan, so glue places a region's x and y on it from its time too, which a
     # cube linked without IRIS data takes from the other's scans, where glue could not compute a region drawn on either
     # on the other
     shapes, scales = {"a": (4, 1, 5, 12, 16), "b": (5, 1, 3, 10, 14)}, {"a": 1.0, "b": 0.5}
@@ -1234,7 +1234,7 @@ def test_a_region_on_an_sst_cube_selects_its_place_on_another_linked_without_iri
 
 
 def test_a_quicklook_opened_once_linked_starts_at_the_point_and_moves_no_other(sst_app, qtbot, tmp_path):
-    # D97: a new quicklook's point, at its map's center, moved the point placed in the other's
+    # a new quicklook's point, at its map's center, moved the point placed in the other's
     write_sst_cube(tmp_path / "a.fits", (4, 1, 5, 12, 16), start=1200.0, cadence=60.0)
     write_sst_cube(tmp_path / "b.fits", (5, 1, 3, 10, 14), center=(-53.25, -401.25), scale=0.5, start=1170.0)
     first, second = (sst_data(tmp_path / f"{name}.fits") for name in "ab")
@@ -1252,7 +1252,7 @@ def test_a_quicklook_opened_once_linked_starts_at_the_point_and_moves_no_other(s
 
 
 def test_undo_and_redo_of_a_linked_click_keep_the_shown_tab_s_point(sst_app, qtbot, tmp_path):
-    # D39, D52, D97: Undo or Redo of a click on the older of two linked quicklooks puts both points back as they were,
+    # Undo or Redo of a click on the older of two linked quicklooks puts both points back as they were,
     # the shown tab's still the one followed: glue puts back each subset in turn, where each point linked the other again
     write_sst_cube(tmp_path / "a.fits", (4, 1, 5, 12, 16), start=1200.0, cadence=60.0)
     write_sst_cube(tmp_path / "b.fits", (5, 1, 3, 10, 14), center=(-53.25, -401.25), scale=0.5, start=1170.0)
@@ -1298,7 +1298,7 @@ def test_undo_of_a_click_keeps_a_quicklook_opened_since(sst_app, qtbot, tmp_path
 
 
 def test_redo_of_a_lock_locks_the_point_clicked(sst_app, qtbot, tmp_path):
-    # D39: Redo of a Follow/lock click locked the edit subset of then, as another tab's point, and left the clicked free
+    # Redo of a Follow/lock click locked the edit subset of then, as another tab's point, and left the clicked free
     write_sst_cube(tmp_path / "a.fits", (4, 1, 5, 12, 16))
     write_sst_cube(tmp_path / "b.fits", (5, 1, 3, 10, 14))
     first, second = (sst_data(tmp_path / f"{name}.fits") for name in "ab")
@@ -1324,7 +1324,7 @@ def test_redo_of_a_lock_locks_the_point_clicked(sst_app, qtbot, tmp_path):
 
 
 def test_sst_time_keys_follow_overlapping_scans(qtbot, tmp_path):
-    # 230-9, 253-2: cubes share a key when their scans overlap or lie within the larger of their cadences of each other,
+    # cubes share a key when their scans overlap or lie within the larger of their cadences of each other,
     # transitively: d, within b's cadence of only the tail of b, the group's earliest cube, joins it; and a chosen time
     # master stays one as cubes come and go and its group's key moves
     write_sst_cube(tmp_path / "a.fits", (3, 1, 5, 12, 16), start=1200.0, cadence=60.0)  # 1200 to 1321 s
@@ -1360,8 +1360,8 @@ def test_sst_time_keys_follow_overlapping_scans(qtbot, tmp_path):
 
 
 def test_once_linked_an_sst_quicklook_shares_the_iris_time(sst_app, qtbot, tmp_path, sns):
-    # D64, D68: an SST cube joins the time sync of the IRIS observation it is linked to, on request only, each scan timed
-    # at its line core (227-4), here its second tuning; and only then behind the WCS lock (227-9)
+    # an SST cube joins the time sync of the IRIS observation it is linked to, on request only, each scan timed
+    # at its line core, here its second tuning; and only then behind the WCS lock
     sji, raster = sns
     frames = describe.times(sji, 0)
     start, cadence = (frames[10] - np.datetime64(DATEREF)), (frames[-1] - frames[10]) / 3
@@ -1400,7 +1400,7 @@ def test_once_linked_an_sst_quicklook_shares_the_iris_time(sst_app, qtbot, tmp_p
 
 
 def test_a_cube_leads_the_time_from_its_hidden_tab(sst_app, qtbot, tmp_path, sns):
-    # D38, D39: chosen to lead the time, a cube whose tab was hidden was taken at scan 0, and D and F moved nothing
+    # chosen to lead the time, a cube whose tab was hidden was taken at scan 0, and D and F moved nothing
     sji, raster = sns
     frames = describe.times(sji, 0)
     start, cadence = (frames[10] - np.datetime64(DATEREF)), (frames[-1] - frames[10]) / 3
@@ -1428,7 +1428,7 @@ def test_a_cube_leads_the_time_from_its_hidden_tab(sst_app, qtbot, tmp_path, sns
 
 
 def test_a_cube_shares_its_sst_cubes_time_again_once_the_iris_data_go(sst_app, qtbot, tmp_path, sns):
-    # D73: a cube kept the key of the IRIS data it was linked to once they were removed, out of its cubes' time sync
+    # a cube kept the key of the IRIS data it was linked to once they were removed, out of its cubes' time sync
     sji, raster = sns
     frames = describe.times(sji, 0)
     start, cadence = (frames[10] - np.datetime64(DATEREF)), (frames[-1] - frames[10]) / 3
@@ -1466,7 +1466,7 @@ def test_a_session_restores_the_sst_quicklook(sst_app, qtbot, monkeypatch, tmp_p
     [data] = restored.data_collection
     assert isinstance(data, _Cube)  # its color limits' sample too
     assert data.coords.core == again["map"].state.slices[-3] == 1
-    assert not again["wing"].state.layers[0].stretch_global  # a quicklook's per-frame limits restore (P9)
+    assert not again["wing"].state.layers[0].stretch_global  # a quicklook's per-frame limits restore
     assert (again["curve"].state.layers[0].color, again["curve"].state.layers[0].linewidth) == ("#123456", 7)
     assert group.label == "Point"
     i = [slice(0, 1)] if stokes == 4 else []  # Stokes I, if any
@@ -1480,7 +1480,7 @@ def test_a_session_restores_the_sst_quicklook(sst_app, qtbot, monkeypatch, tmp_p
 
 
 def test_a_stokes_collapse_reaches_every_map(sst_app, qtbot, tmp_path):
-    # glue's Collapse gives the Image panels an AggregateSlice of Stokes parameters, its center's limits (D39)
+    # glue's Collapse gives the Image panels an AggregateSlice of Stokes parameters, its center's limits
     cube, _ = stokes_cube(tmp_path / "cube.fits")
     viewers = quicklook(sst_app, [cube])
     spectrum = viewers["spectra"][0]
@@ -1513,7 +1513,7 @@ def test_removing_the_cube_a_quicklook_shows_goes_through(sst_app, tmp_path):
 
 
 def test_an_unlinked_cube_never_takes_the_wcs_lock(sst_app, qtbot, monkeypatch, tmp_path, sns):
-    # 227-9: an SST cube is behind the WCS lock only once linked to IRIS data, as maps are (#226), so that its viewers
+    # an SST cube is behind the WCS lock only once linked to IRIS data, as maps are (#226), so that its viewers
     # never wait for IRIS data's threads until then; with the axes shown, WCSAxes draws through its coordinates
     taken, lock = [], WCS_LOCK
 
@@ -1548,10 +1548,10 @@ def test_an_unlinked_cube_never_takes_the_wcs_lock(sst_app, qtbot, monkeypatch, 
 
 
 def test_every_wcslib_call_on_an_unlinked_cube_holds_its_own_lock(sst_app, qtbot, monkeypatch, tmp_path):
-    # D73: glue-qt computes the spectra of a cube of over 1e7 values on worker threads, as the GUI thread draws its
+    # glue-qt computes the spectra of a cube of over 1e7 values on worker threads, as the GUI thread draws its
     # coordinates and resets them (wcsset) at each scan; wcslib writes the table's scratch values as it reads them, which
     # gave wrong values and crashed glue. So each call into wcslib, or into astropy's code that reads its struct, holds
-    # the cube's own lock, and not the WCS lock (227-9)
+    # the cube's own lock, and not the WCS lock
     monkeypatch.setattr(
         QThreadedProfileLayerArtist, "_calculate_profile", lambda self, reset=False: self._worker.work_queue.put(reset)
     )
@@ -1618,7 +1618,7 @@ def test_a_cube_linked_mid_transform_neither_hangs_nor_races(tmp_path):
 
 
 def test_the_browser_lists_and_opens_each_sst_cube(qtbot, monkeypatch, tmp_path):
-    # D68: an archive folder's observation, an entry per cube, a quicklook per cube; and 'Quicklook…' (D83)
+    # an archive folder's observation, an entry per cube, a quicklook per cube; and 'Quicklook…'
     folder = tmp_path / "SST-archive_obs492_20230919_CRISP_stokes"
     folder.mkdir()
     for name, line, stokes in (("nb_8542_im.fits", "Ca II 8542", 4), ("nb_6173_im.fits", "Fe I 6173", 1)):

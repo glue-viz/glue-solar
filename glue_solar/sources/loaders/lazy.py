@@ -56,7 +56,7 @@ def fill_mask(values):
 def at_ceiling(values):
     """
     Whether IRIS ``values``, in DN, are at the Level 2 ceiling, 16182 DN: saturated, which irispy's scaled reads keep
-    at their value and mask (D85).
+    at their value and mask.
     """
     from irispy.utils.constants import SATURATION_LIMIT  # with the first file rather than at glue's launch
 
@@ -75,7 +75,7 @@ class _Scaled:
     """
 
     def __init__(self, raw, bscale, bzero, fill):
-        # ponytail: raw is irispy's memory map, whose pages stay resident once viewed and which a file cut short or a
+        # shortcut: raw is irispy's memory map, whose pages stay resident once viewed and which a file cut short or a
         # lost drive turns into SIGBUS; a reader of whole planes (os.pread) in its place bounds both
         self.raw = raw
         self.shape, self.ndim, self.dtype = raw.shape, raw.ndim, np.dtype(np.float32)
@@ -100,7 +100,7 @@ class RawComponent(DaskComponent):
     """
 
     def __init__(self, raw, bscale, bzero, missing, units=None):
-        # the raw codes of the missing values (D12): exact integers only, as only those can be stored
+        # the raw codes of the missing values: exact integers only, as only those can be stored
         codes = [(value - bzero) / bscale for value in missing]
         fill = [int(code) for code in codes if float(code).is_integer() and -32768 <= code <= 32767]
         self._source = _Scaled(raw, bscale, bzero, fill)
@@ -140,7 +140,7 @@ class RawComponent(DaskComponent):
         'minimum', 'maximum' or 'percentile' of the sample, or of every value ``view`` selects, as NumPy's linear
         percentile of the scaled values.
         """
-        # ponytail: a view's codes are counted at once, 14 bytes a value; a Collapse range across a whole window
+        # shortcut: a view's codes are counted at once, 14 bytes a value; a Collapse range across a whole window
         # would want them plane by plane, as the sample is
         counts = self._sample() if view is None else self._count(view)
         values = np.arange(-32768, 32768, dtype=np.float32) * self._source.bscale + self._source.bzero

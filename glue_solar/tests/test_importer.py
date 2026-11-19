@@ -53,7 +53,7 @@ def _row(dialog, obsid):
 
 def test_tests_keep_off_the_users_settings(tmp_path):
     """
-    The canary for the macOS QSettings leak (D75): conftest's isolated settings and the runner's config dir keep the
+    The canary for the macOS QSettings leak: conftest's isolated settings and the runner's config dir keep the
     tests off the user's own preferences.
     """
     from glue import config
@@ -77,7 +77,7 @@ def test_tree_lists_observations_and_files(dialog):
     assert all(row.child(i).isFirstColumnSpanned() for i in range(row.childCount()))
     assert row.text(2) == "Test raster 1x2 3s"
     assert row.text(5) == "4"
-    # in words, not FITS keywords (D90)
+    # in words, not FITS keywords
     header = dialog.obs_tree.headerItem()
     columns = ["Start", "OBSID", "Description", "Pointing", "Roll", "Files"]
     assert [header.text(i) for i in range(header.columnCount())] == columns
@@ -166,7 +166,7 @@ def test_main_window_lists_the_ticked_raster_windows_shown_for_two_or_more(dialo
     windows = {row.child(i).text(0).split(" — ")[0]: row.child(i) for i in range(row.childCount())}
 
     def ticked(name, state=Qt.Checked):
-        """The windows listed, the one shown and whether Main window shows, a choice from two or more (D90)."""
+        """The windows listed, the one shown and whether Main window shows, a choice from two or more."""
         windows[name].setCheckState(0, state)
         assert combo.isHidden() == dialog.main_window_label.isHidden()
         return [combo.itemText(i) for i in range(combo.count())], combo.currentText(), not combo.isHidden()
@@ -908,7 +908,7 @@ def test_aia_cube_uses_the_same_irispy_adapter(tmp_path, irispy_test_files):
 
 
 def test_labels_name_the_window_and_its_observation_and_results_follow_them(irispy_test_files):
-    # D90: '<window> <start>', then 'scan <n>' in an observation of several rasters or 'stack', the components named
+    # '<window> <start>', then 'scan <n>' in an observation of several rasters or 'stack', the components named
     # after the window, and '<label> <result>'
     from glue_solar.regrid import rebin
     from glue_solar.sources.moments import line_moments
@@ -1344,7 +1344,7 @@ def test_raster_load_failure_names_the_file_that_fails(qtbot, tmp_path, irispy_t
 
 @pytest.mark.remote_data
 def test_negative_step_raster_keeps_irispys_orientation(app, irispy_data):
-    # D10: a STEPS_AV < 0 raster keeps irispy's orientation, unflipped, and longitude grows with step
+    # a STEPS_AV < 0 raster keeps irispy's orientation, unflipped, and longitude grows with step
     from glue_qt.viewers.image import ImageViewer
 
     [path] = irispy_data("iris_l2_20250328_225628_3400109360_cutout_raster.tar.gz")

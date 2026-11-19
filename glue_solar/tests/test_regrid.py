@@ -379,7 +379,7 @@ def test_north_up_steps_through_irispys_slit_jaw_image(app, tmp_path, irispy_tes
 
 
 def test_north_up_links_the_aia_cutout_it_shows(app, irispy_test_files):
-    # D72: an AIA cutout or SOT cube is linked on request only, and north up asks: glue shows it on the grid through
+    # an AIA cutout or SOT cube is linked on request only, and north up asks: glue shows it on the grid through
     # their links, with or without IRIS data
     aia = image_data(find_irispy_test_file(irispy_test_files, SJI))
     aia.meta["INSTRUME"] = "AIA_3"  # read as an aligned cutout is

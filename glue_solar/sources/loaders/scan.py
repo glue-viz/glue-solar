@@ -26,7 +26,7 @@ _POOCH = re.compile(r"^[0-9a-f]{32}-")
 # iris_l2_YYYYMMDD_HHMMSS_OBSID_... and the co-aligned aia_l2_... cutouts and Hinode sot_l2_... and sotsp_l2_... cubes
 _L2_STEM = re.compile(r"^(?:iris|aia|sot|sotsp)_l2_(?P<date>\d{8})_(?P<time>\d{6})_(?P<obsid>\d{10})")
 _FITS = (".fits", ".fits.gz")
-# ponytail: how long before a time window an observation stamped in a filename may have begun; longer ones are missed
+# shortcut: how long before a time window an observation stamped in a filename may have begun; longer ones are missed
 _LONGEST = 1 * u.day
 
 

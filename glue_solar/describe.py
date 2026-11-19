@@ -25,7 +25,7 @@ def observation_key(data):
     IRIS observation it is linked to (`~glue_solar.sources.loaders.iris.link_hpc`), else the one it shares with the SST
     cubes whose scan times overlap, or lie within a cadence of, its own (`Coordinator`), or before its collection has a
     coordinator ``('SST', DATE-OBS)``. A DKIST spectrograph's dataset and its context imager's share ``('DKIST', their
-    observing program execution)`` once their collection has a coordinator, and other DKIST datasets have none (D105).
+    observing program execution)`` once their collection has a coordinator, and other DKIST datasets have none.
     """
     if isinstance(data, DKISTData):
         return vars(data).get("_solar_time_key")
@@ -113,7 +113,7 @@ def sji_to_raster(sji, frame, x, y, raster):
     frame's own pointing.
 
     A scanning raster's step and slit row are those nearest that place. A sit-and-stare raster's exposure is the one
-    nearest the frame's time, as its slit stays in place, if within half its cadence (D7), and its slit row the one
+    nearest the frame's time, as its slit stays in place, if within half its cadence, and its slit row the one
     level with the pixel, beside the slit too. A stack's scan is the one nearest the frame's time at the step scan 0
     places there, however far from it, and its step and slit row are those nearest that place with that scan's own
     pointing.
@@ -168,7 +168,7 @@ def sji_to_raster(sji, frame, x, y, raster):
 def time_axis(data):
     """
     The axis along which ``data`` steps through time (frames, exposures or scans), or None for a scanning raster, whose
-    steps are places on the Sun; a DKIST pair's frames or raster steps (`_frame_axis`, D105).
+    steps are places on the Sun; a DKIST pair's frames or raster steps (`_frame_axis`).
     """
     if dkist(data):
         return _frame_axis(data)
@@ -241,7 +241,7 @@ IRIS_ROLES = ("raster", "sji", "aia")  # an IRIS observation's own data, whose p
 def image_cube(data):
     """
     Whether ``data`` is an image cube of an IRIS observation, placed frame by frame: a slit-jaw image, or an aligned AIA
-    cutout or Hinode/SOT cube, which a quicklook of its observation takes as it takes a slit-jaw image (D115).
+    cutout or Hinode/SOT cube, which a quicklook of its observation takes as it takes a slit-jaw image.
     """
     return role(data) in ("sji", "aia")
 
@@ -249,7 +249,7 @@ def image_cube(data):
 def dkist(data):
     """
     'raster' or 'imager' for a DKIST spectrograph's dataset or its context imager's tile observed with it, which share a
-    time key (`observation_key`), as IRIS's raster and slit-jaw images (D105); else None.
+    time key (`observation_key`), as IRIS's raster and slit-jaw images; else None.
     """
     if not isinstance(data, DKISTData) or observation_key(data) is None:
         return None
@@ -304,7 +304,7 @@ def wavelengths(data):
     [axis] = spectral_axes(data)
     index = [0] * data.ndim
     index[axis] = slice(None)
-    unit = u.Unit(data.coords.world_axis_units[data.coords.world_n_dim - 1 - axis])  # glue's world axis (D102)
+    unit = u.Unit(data.coords.world_axis_units[data.coords.world_n_dim - 1 - axis])  # glue's world axis
     return (data[data.world_component_ids[axis], tuple(index)] * unit).to_value(u.AA), axis
 
 
@@ -333,7 +333,7 @@ def cube_axes(data):
     those it does not have: one wavelength axis, of two wavelengths or more, two others of position, on the sky or the
     Sun, and any of time and Stokes parameter; or None for data of other axes. A slit raster's steps are x and its slit
     y, as IRIS's maps, and the other axes its pointing moves along, a DKIST raster's repeats or measurements, are left
-    to sliders, as Stokes (D103).
+    to sliders, as Stokes.
     """
     types = [str(kind) for kind in getattr(data.coords, "world_axis_physical_types", None) or ()]
     matrix = getattr(data.coords, "axis_correlation_matrix", None)
@@ -351,8 +351,8 @@ def cube_axes(data):
     moving = place
     if len(place) > 2:  # those glue gives a position, as a DKIST raster's where its pointing moves most (`_glue_order`)
         place = {axis for axis in place if types[len(types) - 1 - axis].startswith(("pos.", "custom:pos."))}
-    steps = time & place  # a slit raster's step, whose time changes too, is a place (D102)
-    sliders = moving - place if steps else set()  # its repeats or measurements, raveled with its steps (D103)
+    steps = time & place  # a slit raster's step, whose time changes too, is a place
+    sliders = moving - place if steps else set()  # its repeats or measurements, raveled with its steps
     time -= place | sliders
     sizes = len(time), len(stokes), len(wave), len(place)
     if sizes[2:] != (1, 2) or max(sizes[:2]) > 1 or sum(sizes) + len(sliders) != data.ndim or data.shape[min(wave)] < 2:

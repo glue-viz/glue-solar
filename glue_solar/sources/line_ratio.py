@@ -233,7 +233,7 @@ def _ask(datasets):
 
 def _maps(layers):
     """
-    The maps of ``layers``, 2-D or a stack's (scan, step, slit) (D59), not loaded data; raise why they do not hold two
+    The maps of ``layers``, 2-D or a stack's (scan, step, slit), not loaded data; raise why they do not hold two
     components between them.
     """
     datasets = [

@@ -16,11 +16,11 @@ authors = [
   { name = "The SunPy Community", email = "sunpy@googlegroups.com" },
 ]
 dependencies = [
-  # each at the latest release glue-solar is tested with, raised as new ones come out (D104)
+  # each at the latest release glue-solar is tested with, raised as new ones come out
   "asdf>=6.0.0",
   "astropy>=8.0.3",
   "dask[array]>=2026.8.0",
-  "dkist>=1.19.0",  # DKIST datasets (D102), as irispy needs it
+  "dkist>=1.19.0",  # DKIST datasets, as irispy needs it
   "echo>=0.17.0",
   "glue-core>=1.28.0",  # its pytest plugin keeps the tests off ~/.glue (glue-viz/glue#2587)
   "glue-qt>=0.4.2",  # without its qt extra, which is PyQt5
@@ -32,10 +32,10 @@ dependencies = [
   "pillow>=13.0.0",
   "PyQt6>=6.12.1",
   "qtpy>=2.4.3",
-  "reproject>=0.21.0",  # DKIST mosaics' stitched image (D108)
+  "reproject>=0.21.0",  # DKIST mosaics' stitched image
   "scipy>=1.18.1",
   "sunpy[map,net]>=8.0.1",
-  # irispy main at a commit glue-solar is tested with, while irispy changes in a batch (D91); a PR moves it after
+  # irispy main at a commit glue-solar is tested with, while irispy changes in a batch; a PR moves it after
   "irispy-lmsal @ git+https://github.com/LM-SAL/irispy.git@f0587057b255015c820b4fb4239cfbec67b5e354",
 ]
 dynamic = ["version"]

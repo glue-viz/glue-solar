@@ -1,6 +1,6 @@
 """
 Lines on a background, composed in Settings, for the Fit tab of glue's Profile viewer, which glue imports with its
-first Profile viewer (D86).
+first Profile viewer.
 """
 
 import copy
@@ -93,8 +93,8 @@ class _Settings(QtWidgets.QDialog):
     The IRIS fitter's Settings, glue-qt's dialog for a fitter's ``settings_widget`` (`glue_patches._on_settings`):
     its components, added and removed, and each parameter's start, Fixed, either bound and, for a line, a tie to a line
     above it: its amplitude or width that line's times the ratio, blank for 1, or its center that line's plus the
-    separation, in the x unit (D86); "Mg II two peaks" sets the components to two lines on a constant (D98); "Save…"
-    and "Open…" write and read them as JSON (D99).
+    separation, in the x unit; "Mg II two peaks" sets the components to two lines on a constant; "Save…"
+    and "Open…" write and read them as JSON.
     """
 
     def __init__(self, fitter, parent=None):
@@ -254,13 +254,13 @@ class GaussianConstantFitter(AstropyFitter1D):
     """
     The sum of the components set in Settings (`_Settings`), by default a Gaussian on a constant, fitted with astropy's
     ``TRFLSQFitter`` to the finite samples, as an IRIS window's fill is NaN, one at least per free parameter, but for
-    those ``saturated``, a lower bound only, which place the starts alone (D87). Starts left blank come from the data:
+    those ``saturated``, a lower bound only, which place the starts alone. Starts left blank come from the data:
     the first background at their median, flat, and each line at its peak from it, emission or absorption, among the
     samples nearer its center than any other line's, the center its start, its tie, or else one of the most prominent
-    peaks, of the sign the amplitude bounds of the lines so started agree on, if any (D98), and its width that of its
+    peaks, of the sign the amplitude bounds of the lines so started agree on, if any, and its width that of its
     samples above half the peak, a Gaussian's standard deviation or a Lorentzian's full width at half maximum. An
-    amplitude with no bounds keeps its start's sign, as a blend otherwise fits as one line up and one down (D81). The
-    summary adds each center and its Doppler velocity from the layer's rest wavelength (D11), how many saturated samples
+    amplitude with no bounds keeps its start's sign, as a blend otherwise fits as one line up and one down. The
+    summary adds each center and its Doppler velocity from the layer's rest wavelength, how many saturated samples
     were left out and how many kept include saturated pixels.
     """
 
@@ -345,7 +345,7 @@ class GaussianConstantFitter(AstropyFitter1D):
         centered = [settings[leaf.param_names[1]] for _, leaf, settings in lines]  # each center's settings
         unset = [setting for setting in centered if setting["tie"] is None and setting["value"] is None]
         # above the median, or below it, where those lines' amplitude bounds agree, so that a range edge or a central
-        # reversal on the other side is no line, as in an Mg II core (D98); zero beyond the range, so that a line at its
+        # reversal on the other side is no line, as in an Mg II core; zero beyond the range, so that a line at its
         # edge is a peak
         signs = {
             _sign(settings[leaf.param_names[0]])
@@ -396,11 +396,11 @@ class GaussianConstantFitter(AstropyFitter1D):
     def plot(self, fit_result, axes, x, linewidth=None, alpha=None, color=None, normalize=None):
         """
         glue's curve of the fit, then each line's on the background, dashed (kept by `glue_patches._plot_fit`), in a
-        shade of the layer's color, wider and above the data, so the fit stands out from its spectrum (D98).
+        shade of the layer's color, wider and above the data, so the fit stands out from its spectrum.
         """
         if color is not None:
             rgb = np.array(to_rgb(color))
-            # darker, or lighter for a dark color, such as black, which a darker shade would not change (D98)
+            # darker, or lighter for a dark color, such as black, which a darker shade would not change
             # a string, as glue's own plot passes it as matplotlib's format
             color = to_hex(rgb * 0.55 if rgb @ [0.299, 0.587, 0.114] > 0.3 else rgb + (1 - rgb) * 0.5)
         linewidth = 3 * (linewidth or 0.5)  # 1.5 times the layer's: glue-qt passes half its width
@@ -450,7 +450,7 @@ _profile_fit = ProfileTools._fit
 def _saturated(layer, state):
     """
     Which samples of the profile of ``layer``, IRIS data or a subset of them, in a Profile viewer of ``state`` are
-    saturated, a lower bound only, and which combine saturated DN with others, a mean biased low (D87): the first where
+    saturated, a lower bound only, and which combine saturated DN with others, a mean biased low: the first where
     every DN its function combines is at the ceiling (`at_ceiling`), any for its Maximum, the second where some are,
     from glue's minimum and maximum of the DN over the same subset, which read what the profile reads; none for other
     data.
@@ -475,7 +475,7 @@ def _fit(self, fitter, xlim=None):
     given what `GaussianConstantFitter.summarize`, which glue-qt passes neither layer nor viewer, and 'Fit every
     spectrum' take: the layer's rest wavelength and attribute, the viewer's x unit and function, the range, how many
     saturated samples it left out and how many it kept that include saturated DN; the viewer keeps its last IRIS fit of
-    each dataset while the dataset lives (D86), of the layer listed last where a dataset and a subset of it are both
+    each dataset while the dataset lives, of the layer listed last where a dataset and a subset of it are both
     fitted.
     """
     if not isinstance(fitter, GaussianConstantFitter):

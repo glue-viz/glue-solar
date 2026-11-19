@@ -46,7 +46,7 @@ def sji_path(tmp_path, irispy_test_files):
 def assert_irispys_dust_removed(dust, path):
     """
     ``dust`` is irispy's ``remove_dust`` of ``path`` read in memory, masked where irispy masks it: NaN, or saturated
-    at its value (D85).
+    at its value.
     """
     cube = read_sji_lvl2(path, memmap=False, uncertainty=False)
     direct = irispy_remove_dust(cube)
@@ -151,7 +151,7 @@ def test_a_calibrated_session_is_kept_and_restores_the_radiance(app, qtbot, monk
     """
     The calibration of the nine windows of 3860258481's scan grows the session glue-solar keeps as glue closes by under
     0.1 MB, not by their factors' 1.3 MB of float64 values, over the 1 MB it keeps, and the session restores each
-    factor as one spectrum held and the same radiance (D75).
+    factor as one spectrum held and the same radiance.
     """
     monkeypatch.setattr(glue.config, "CFG_DIR", str(tmp_path))  # glue's settings folder, not the user's
     windows = raster_data([scan_path])

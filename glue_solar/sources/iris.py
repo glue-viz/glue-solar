@@ -83,7 +83,7 @@ def iris_image_layer(viewer, data):
 
     glue's default paints NaN opaque in the colormap's "bad" color, black for the IRIS
     colormaps, so gaps and off-detector areas look like dark data, and each tile of a DKIST mosaic
-    painted the tiles beneath it black around its own (D103).
+    painted the tiles beneath it black around its own.
     """
     ours = "OBSID" in getattr(data, "meta", {}) or isinstance(data, DKISTData)
     if not isinstance(viewer, MatplotlibImageMixin) or not ours:
@@ -353,7 +353,7 @@ def _check_quicklook(data):
 def quicklook_cube(data, data_collection):
     """
     Open the quicklook (`~glue_solar.quicklook.quicklook`) of ``data``: of an IRIS raster or slit-jaw image, its
-    observation's loaded datasets; of an SST or other spectral cube, the cube alone (D83).
+    observation's loaded datasets; of an SST or other spectral cube, the cube alone.
     """
     _check_quicklook(data)
     datasets = [data]

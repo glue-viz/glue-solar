@@ -1,6 +1,6 @@
 """
 'IRIS: line maps…': irispy's moment maps of a line in a raster window or a stack of its scans, its Doppler image
-(`~glue_solar.sources.doppler`) and red-blue asymmetry (`~glue_solar.sources.red_blue`), as new datasets (D83); and
+(`~glue_solar.sources.doppler`) and red-blue asymmetry (`~glue_solar.sources.red_blue`), as new datasets; and
 'IRIS: subtract mean spectrum': a raster window's values less its mean spectrum, as a glue derived component.
 """
 
@@ -25,7 +25,7 @@ from glue_solar.sources.loaders.lazy import at_ceiling
 
 __all__ = ["line_maps_iris", "line_moments", "mean_spectrum_iris", "subtract_mean_spectrum"]
 
-# The velocity range the dialog takes at first, in km / s from the line center: ±0.5 Å at Si IV 1402.77 (D57)
+# The velocity range the dialog takes at first, in km / s from the line center: ±0.5 Å at Si IV 1402.77
 VELOCITY_RANGE = (-107.0, 107.0)
 
 
@@ -80,7 +80,7 @@ def _moments(data, center, velocity_range, continuum, crop, unit, errors=False):
         saturated += int(slab.pop("saturated").data.sum())
         for name, moment in slab.items():
             # irispy sums masked samples as 0, and masks a pixel with none in the velocity range, or with a saturated
-            # sample there: NaN there (D17)
+            # sample there: NaN there
             maps.setdefault(name, []).append((np.where(moment.mask, np.nan, moment.data), moment.unit))
             if errors:  # NaN too where irispy leaves them undefined
                 maps.setdefault(f"{name} error", []).append(
@@ -108,7 +108,7 @@ def line_moments(data, center, velocity_range=VELOCITY_RANGE, continuum=None, er
     constant to one window, a straight line to more.
 
     irispy is given the window's ``<label> DN / s`` where it has one, else its values, with NaN, -Inf and the samples
-    the window's mask marks saturated, at the Level 2 ceiling, 16182 DN, masked (D85). Its components are irispy's:
+    the window's mask marks saturated, at the Level 2 ceiling, 16182 DN, masked. Its components are irispy's:
     ``intensity`` in that unit, ``centroid`` and ``width`` in Angstrom, and ``velocity`` and ``velocity_width`` in
     km / s, relative to ``center``; all are NaN where every sample within the velocity range is missing, no background
     could be fitted, or a sample there is saturated. ``meta`` holds the observation's ``OBSID`` and
@@ -185,7 +185,7 @@ def _ask(data, drawn=None):
     ``drawn``, a Profile range, the velocity range reaches its ends, cut to the window, from a center within it.
     """
     dialog, form = analysis.form(f"IRIS: line maps of {data.label}")
-    center = _rest_field(data, "rest")  # D11: never the window's TWAVE
+    center = _rest_field(data, "rest")  # never the window's TWAVE
     form.addRow("Rest wavelength [Å]:", center)
     moments = QtWidgets.QCheckBox("Line moments", objectName="moments", checked=True)
     form.addRow(moments)
@@ -241,7 +241,7 @@ def _ask(data, drawn=None):
     form.addRow(errors)
     for widget in (*boxes, continuum, errors):  # the line moments' alone
         moments.toggled.connect(widget.setEnabled)
-    # at their scripting functions' defaults (D83)
+    # at their scripting functions' defaults
     taken, wings = red_blue.WAVELENGTHS, red_blue.VELOCITIES
     ticks = [moments]
     for name, label, tooltip in (
@@ -295,8 +295,8 @@ def _saturated(moments):
 def line_maps_iris(data, data_collection):
     """
     Add the maps of ``data`` ticked (`_ask`): its `line_moments` for the values typed, and its
-    `~glue_solar.sources.doppler.doppler_image` and `~glue_solar.sources.red_blue.red_blue_asymmetry` at their defaults
-    (D83): each checked before any is computed, then computed in turn in the background
+    `~glue_solar.sources.doppler.doppler_image` and `~glue_solar.sources.red_blue.red_blue_asymmetry` at their defaults:
+    each checked before any is computed, then computed in turn in the background
     (`~glue_solar.sources.analysis.start`), so the memory peak is one map's.
     """
     analysis.check(data)  # before asking
@@ -327,7 +327,7 @@ def _mean_spectrum(data, cid):
     """
     The mean of the values of ``cid`` over every axis of ``data`` but wavelength, its last, missing and saturated ones
     (`at_ceiling`) left out, NaN where every one is, summed in float64 a slab of `analysis.SLAB` samples at a time, and
-    how many saturated samples it left out (213-7); on any thread.
+    how many saturated samples it left out; on any thread.
     """
     total, count, saturated = np.zeros(data.shape[-1]), np.zeros(data.shape[-1]), 0
     steps = max(1, analysis.SLAB // (data.shape[-2] * data.shape[-1]))

@@ -120,7 +120,7 @@ def test_the_button_follows_the_viewer_s_iris_fit(app, qtbot, scan_path):
 
 
 def test_each_viewer_fits_the_window_with_its_own_fit(app, qtbot, scan_path, calls, once):
-    """Of two Profile viewers of a window, each button takes its own viewer's fit, the second's the newer (D88)."""
+    """Of two Profile viewers of a window, each button takes its own viewer's fit, the second's the newer."""
     [raster] = raster_data([scan_path], ["Si IV 1403"])
     app.data_collection.append(raster)
     first, second = profile(app, raster), profile(app, raster)
@@ -149,7 +149,7 @@ def test_the_viewer_keeps_the_last_fit_of_each_dataset(app, qtbot, scan_path):
     assert set(tools._iris_fits) == {first, second}
     assert tools._iris_fits[first] is kept
     assert fit_maps._viewer_fit(tools)[0] is second  # the newest
-    # a dataset removed is not kept alive by its fit (D86)
+    # a dataset removed is not kept alive by its fit
     tools.viewer.remove_data(second)
     app.data_collection.remove(second)
     assert fit_maps._viewer_fit(tools)[0] is first  # its fit, still kept, skipped
@@ -166,7 +166,7 @@ def test_the_viewer_keeps_the_last_fit_of_each_dataset(app, qtbot, scan_path):
 def test_a_fit_in_km_s_converts_to_the_same_fit_in_angstrom(background):
     """
     Two lines on a linear or a quadratic background, a center bounded, fitted against km / s from the rest wavelength
-    and against Angstrom: both in Angstrom are the same model, to rounding (D88).
+    and against Angstrom: both in Angstrom are the same model, to rounding.
     """
     wavelengths = 1402 + 0.025 * np.arange(64)
     doppler = u.doppler_optical(REST * u.AA)
@@ -275,7 +275,7 @@ def test_saturated_samples_are_left_out_of_the_fits(app, qtbot, monkeypatch, sca
     """
     A sample at the Level 2 ceiling, 16182 DN, a lower bound only, is left out of each spectrum's fit and its start,
     irispy's ``starts_from_model`` of the masked cube; the window's mean, whose other pixels are not saturated there,
-    keeps it in its Profile fit, which says so (D86, D87).
+    keeps it in its Profile fit, which says so.
     """
     [raster] = raster_data([scan_path], ["Si IV 1403"])
     peak = np.argmin(np.abs(describe.wavelengths(raster)[0] - 1402.77))
@@ -374,7 +374,7 @@ def test_c_ii_built_in_settings_fits_one_spectrum_then_the_window(app, qtbot, mo
     C II's three lines built in Settings, 1334.53, 1335.66 and 1335.71 Å, the last two a blend: Gaussians on a
     quadratic, the second's and third's centers tied to the first's by their separations and each amplitude at least 0,
     fitted to the mean spectrum of the scan's C II window, then to the window with 'Fit every spectrum' from irispy's
-    starts (D86).
+    starts.
     """
     [raster] = raster_data([scan_path], ["C II 1336"])
     app.data_collection.append(raster)

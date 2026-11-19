@@ -66,7 +66,7 @@ def test_a_raster_window_gives_irispys_labels_and_events_linked_and_the_labels_i
     opened = answer(monkeypatch, threshold=" 80 ")
     labels, table = run(app, qtbot, raster, 3)
     assert opened == [{"threshold": "", "velocity_range": 50.0, "median_factor": 10.0}]
-    [[viewer]] = app.viewers  # glue's Image viewer of the labels, none of the table (D83)
+    [[viewer]] = app.viewers  # glue's Image viewer of the labels, none of the table
     assert viewer.state.layers[0].attribute is labels.main_components[0]
     cube = read_spectrograph_lvl2(path)["Si IV 1403"][0]
     direct, events = find_si_iv_bursts(cube, threshold=80)
@@ -187,7 +187,7 @@ def test_a_stack_gives_each_scans_labels_and_events(app, qtbot, monkeypatch, sta
 
 
 def test_a_rebinned_window_gives_bursts_at_its_own_exposure_times(irispy_test_files):
-    """Rebinned by 2 along its 64 steps: irispy takes the 32 bins' exposure times, not its copied meta's 64 (D59)."""
+    """Rebinned by 2 along its 64 steps: irispy takes the 32 bins' exposure times, not its copied meta's 64."""
     [raster] = raster_data([find_irispy_test_file(irispy_test_files, SI_IV)])
     binned = rebin(raster, (2, 2, 1))
     seconds = binned[binned.id["Exposure time"], (slice(None), 0, 0)]  # the mean of each bin's
@@ -208,7 +208,7 @@ def test_a_slit_jaw_image_gives_irispys_labels_and_events_on_its_coordinates(
     opened = answer(monkeypatch)
     labels, table = run(app, qtbot, sji, 26)
     assert opened == [{"sigma_factor": 10.0, "min_pixels": 2}]
-    [[viewer]] = app.viewers  # glue's Image viewer of the labels, none of the table (D83)
+    [[viewer]] = app.viewers  # glue's Image viewer of the labels, none of the table
     assert viewer.state.layers[0].attribute is labels.main_components[0]
     assert_irispys(labels, table, *find_bright_image_events(read_sji_lvl2(path)))
     assert [cid.label for cid in table.main_components] == ["label", "frame", "npix", "threshold", "y", "x", *POSITION]

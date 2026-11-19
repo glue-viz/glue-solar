@@ -31,8 +31,8 @@ __all__ = ["is_sst_fits", "sst_data"]
 
 # NIST air wavelengths, in nm, of the lines of the SST archive's cubes: Ca II K and H, H-beta, Fe I 6173, 6301 and 6302,
 # H-alpha and Ca II 8542
-# ponytail: those lines only; a cube of another line takes the tuning nearest WAVELNTH, the prefilter's center, until its
-# line is added here
+# shortcut: those lines only; a cube of another line takes the tuning nearest WAVELNTH, the prefilter's center, until
+# its line is added here
 _LINES = np.array([393.3663, 396.8469, 486.135, 617.3335, 630.1501, 630.2493, 656.279, 854.2091])
 
 
@@ -40,7 +40,7 @@ def _line_core(waves, wavelnth=None):
     """
     The tuning of the line core, of tunings at ``waves``, in nm: the one nearest the line of `_LINES` within them that is
     nearest ``wavelnth``, the header's WAVELNTH, which is the prefilter's, or the middle tuning's wavelength without it;
-    the line's air wavelength itself, not redshifted by the Sun's gravity (232-1). Of tunings as near it to 0.05 pm, half
+    the line's air wavelength itself, not redshifted by the Sun's gravity. Of tunings as near it to 0.05 pm, half
     the 0.1 pm the table gives the lines to, such as obs 492 Ca II 8542's 9 and 10, each 3.0 pm from it, the one nearer
     the middle tuning. With no line within them, the tuning nearest ``wavelnth``.
     """
@@ -68,7 +68,7 @@ class _TabularWCS(_HeldWCS):
     a scan the time of its first. wcslib inverts the table in 0.4 ms a point, and gives NaN for a wavelength or time
     outside it, such as the CRVAL, 0, glue gives for those of linked data that have none. This inverse places a
     longitude and latitude in the scan nearest the time, at the tuning of the wavelength, from the pointing wcslib gives
-    there: in the nearest scan for a time outside them, and at the line core for a wavelength outside them (D67).
+    there: in the nearest scan for a time outside them, and at the line core for a wavelength outside them.
     """
 
     core = None
@@ -114,7 +114,7 @@ class _TabularWCS(_HeldWCS):
         At each scan and tuning, (scan, tuning) arrays: the longitude and latitude at pixel (0, 0), their steps along x
         and y, and the time; the wavelength of each tuning; and the CRVAL, CDELT and CRPIX of the Stokes axis, if any.
         """
-        # ponytail: a pointing linear in x and y, as SSTRED's tables at the field's corners give; a table of more
+        # shortcut: a pointing linear in x and y, as SSTRED's tables at the field's corners give; a table of more
         # points takes wcslib's inverse (`_corners`), but a bilinear one of corners would want it too
         tunings, scans, stokes = self.pixel_shape[2], self.pixel_shape[-1], [0] * (self.pixel_n_dim - 4)
         t, k = np.indices((scans, tunings))
@@ -186,9 +186,9 @@ class _Cube(Data):
     An SST cube's dataset, whose sampled statistics of a component held in the file, the color limits of an Image
     layer, its style editor and a Histogram's range, are those of evenly spaced rows and columns of 16 planes, as many
     values as glue samples: glue's 10,000 random values each lie on another page of the file, 0.7 GB read cold and
-    0.04 s warm per statistic (SST10), where these lie on a few hundred. Plane k, from 0 to 15, is at the k-th of 16
+    0.04 s warm per statistic, where these lie on a few hundred. Plane k, from 0 to 15, is at the k-th of 16
     evenly spaced tunings, Stokes parameter k modulo their number and the (7k mod 16)-th of 16 evenly spaced scans, so
-    every part of the line counts whatever the number of scans (D73); a cube of 16 planes or fewer gives them all. A
+    every part of the line counts whatever the number of scans; a cube of 16 planes or fewer gives them all. A
     session keeps the class, and reads the ``VAR-EXT`` tables of ``meta`` from the file again.
     """
 
@@ -266,7 +266,7 @@ class _Cube(Data):
         """
         Ask the kernel for the pages of the file that ``values[small]`` reads (`_pages`): once a cold file's read-around
         stops, after about 100 page-fault misses, each page otherwise comes in a fault of its own, and an SST quicklook's
-        scan step took 0.36-0.54 s on Linux, a revisit's time with the hints (D100). 128 KB a call, as a call reads at
+        scan step took 0.36-0.54 s on Linux, a revisit's time with the hints. 128 KB a call, as a call reads at
         most the readahead window.
         """
         pages = self._pages(values, root, small)
@@ -283,8 +283,8 @@ class _Cube(Data):
         ``values[view]`` read as one plain read of the rows' band per plane, through astropy's ``section`` of the file,
         where the view is dense: each index along an axis of its own and the bands no more than twice the pages the
         map's read would touch. Faulting a memory-mapped file's pages one at a time, hinted or not, took 2.2 to 3.1 s
-        cold for the full virtual slit of a 13 GB cube over USB where reading each plane's band took 0.47 s
-        (GLUE_SPEED.md, 2026-10-31). None for a sparse view, which the hints serve, or a cube of no file.
+        cold for the full virtual slit of a 13 GB cube over USB where reading each plane's band took 0.47 s.
+        None for a sparse view, which the hints serve, or a cube of no file.
         """
         log = getattr(self, "_load_log", None)
         axes = [k - index.ndim for index in small for k, n in enumerate(index.shape) if n > 1]
@@ -336,7 +336,7 @@ class _Cube(Data):
     @cached_property
     def _noise(self):
         """
-        The noise level of Stokes Q, U and V, by index (F173): the standard deviation of each at the continuum, the end
+        The noise level of Stokes Q, U and V, by index: the standard deviation of each at the continuum, the end
         tuning farther from the line core, from the median absolute deviation, which the few polarized pixels leave
         alone, of `_sample`'s 10,000 values of it there, NaN, such as a mosaic's edges, left out; 0 if all are NaN.
         """
@@ -353,7 +353,7 @@ class _Cube(Data):
     def _field(self):
         """
         The first and last row and column, ``((y0, y1), (x0, x1))``, that can hold the field, a mosaic's NaN border left
-        out (P9), from `_sample`'s rows of its planes read whole, the pages its sample reads: the rows between the
+        out, from `_sample`'s rows of its planes read whole, the pages its sample reads: the rows between the
         sampled rows next to the outermost with a finite value, and their finite values' columns widened by a row step,
         as a rotated field's corner can lie between them; None if all are NaN.
         """
@@ -451,7 +451,7 @@ def sst_data(path):
         wcs.__class__ = _TabularWCS
         wcs.core = _line_core(wcs._grid[5], header.get("WAVELNTH"))
         if wcs.wcs.cname[-1]:  # SSTRED's 'Time since DATEREF, increases with dim. 3 and 5', glue's slider and axis
-            wcs.wcs.cname[-1] = "Scan time"  # name; not 'Time', the datetime component's (D90)
+            wcs.wcs.cname[-1] = "Scan time"  # name; not 'Time', the datetime component's
         # glue's `axis_label` checks an axis's name but gives its mirror's, y's and the Stokes axis's here, which SSTRED
         # leaves unnamed: '' for Stokes, 'Hplt' for y and 'World 2' for a path diagram's wavelength (report candidate)
         if not stokes and wcs.wcs.cname[1]:

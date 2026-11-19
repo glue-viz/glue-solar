@@ -116,7 +116,7 @@ _FLAT = 0.05
 def _throttle_slice_sliders(viewer):
     """
     Make a slider drag apply its latest position once Qt is idle: glue-qt redraws at every value a slider passes, so a
-    drag on a large cube lags (``wp0-perf-qt``). The sliders are glue-qt's ``value_slice_center``, as a test pins.
+    drag on a large cube lags. The sliders are glue-qt's ``value_slice_center``, as a test pins.
     """
     for slider in viewer.options_widget().findChildren(QtWidgets.QSlider, "value_slice_center"):
         if not slider.hasTracking():
@@ -153,11 +153,11 @@ def _sit_and_stare_raster(data):
 def _beside_exposures(data, axis):
     """
     The world axis shown along the numpy ``axis`` beside a sit-and-stare raster's exposures: glue's own, but along the
-    slit the angle that changes more along it, its longitude on a slit rolled near 90° (D30).
+    slit the angle that changes more along it, its longitude on a slit rolled near 90°.
     """
     if axis != 1:
         return data.ndim - 1 - axis
-    ends = data.coords.pixel_to_world_values(0, [0, data.shape[1] - 1], 0)[1:]  # latitude, longitude, arcsec (D31)
+    ends = data.coords.pixel_to_world_values(0, [0, data.shape[1] - 1], 0)[1:]  # latitude, longitude, arcsec
     lat, lon = np.abs(Angle(np.diff(ends)[:, 0], u.arcsec).wrap_at(180 * u.deg))  # the short way across 0°
     return 2 if lon > lat else 1
 
@@ -182,7 +182,7 @@ def _hovered(state, x, y):
 
 def _world_position(axes, x, y, keep=None, data=None):
     """
-    WCSAxes' world readout at ``x, y``, arcsec to 0.01" and Å to 0.001 Å where WCSAxes gives its ticks' precision (D31);
+    WCSAxes' world readout at ``x, y``, arcsec to 0.01" and Å to 0.001 Å where WCSAxes gives its ticks' precision;
     ``keep``, a coordinate of ``axes``, leaves the other angles out, and ``data`` adds the Doppler velocity from its
     rest wavelength (#264).
     """
@@ -226,7 +226,7 @@ def _exposure_label(data):
 
 def _index_ticks(axes, index, shown):
     """
-    Give the x (``index`` 0) or y (1) axis of ``axes`` integer pixel ticks and return their coordinate helper (D29);
+    Give the x (``index`` 0) or y (1) axis of ``axes`` integer pixel ticks and return their coordinate helper;
     only ``shown``, the world coordinate along the other axis, keeps ticks, fixed there, as WCSAxes would move the
     others and glue's labels to whichever edge is free.
     """
@@ -314,7 +314,7 @@ def _shown_slice(state):
 def _frame_time(data, view, decimals=3, clock=False):
     """
     The time of ``view``, a `_shown_slice`, of ``data`` from its first datetime component, in UTC to ``decimals`` of a
-    second, or with ``clock`` its time of day to the second (D90), or the first and last of several; '' without one.
+    second, or with ``clock`` its time of day to the second, or the first and last of several; '' without one.
     """
     cid = None if view is None else _time_component(data)
     if cid is None:
@@ -334,9 +334,9 @@ def _frame_time(data, view, decimals=3, clock=False):
 @viewer_tool
 class FrameTimeTool(Tool, HubListener):
     """
-    The frame time and time sync in the status bar (D21), and each Image viewer's setup glue lacks: throttled sliders,
-    sit-and-stare exposure labels and ticks (D29) and flat-angle labels, set again as glue resets the axes, and the
-    mouse-over readout with time, exposure and Doppler velocity (D31, #264).
+    The frame time and time sync in the status bar, and each Image viewer's setup glue lacks: throttled sliders,
+    sit-and-stare exposure labels and ticks and flat-angle labels, set again as glue resets the axes, and the
+    mouse-over readout with time, exposure and Doppler velocity (#264).
     """
 
     icon = "window_tab"
@@ -424,7 +424,7 @@ class FrameTimeTool(Tool, HubListener):
     def _label_exposures(self, *_):
         """
         Hide the tick labels of a flat angle, label a displayed sit-and-stare exposure axis and give it exposure ticks,
-        and on a quicklook panel give glue's other axis labels their units (D90; see the class).
+        and on a quicklook panel give glue's other axis labels their units (see the class).
         """
         state = self.viewer.state
         data = state.reference_data
@@ -443,7 +443,7 @@ class FrameTimeTool(Tool, HubListener):
             exposures = sit_and_stare and att.axis == 0
             label = getattr(state, f"{axis}_axislabel")
             if label in ("", getattr(world, "label", None)):  # glue's reset
-                if sit_and_stare and other.axis == 0:  # beside the exposures, the angle shown, by its own name (D30)
+                if sit_and_stare and other.axis == 0:  # beside the exposures, the angle shown, by its own name
                     world = data.world_component_ids[data.ndim - 1 - _beside_exposures(data, att.axis)]
                 unit = panel and world is not None and data.get_component(world).units
                 own = f"{world.label} [{unit}]" if unit else label and world.label
@@ -460,7 +460,7 @@ class FrameTimeTool(Tool, HubListener):
             if coords is not axes.coords:  # glue reset the axes, and the ticks with them
                 ticks = _index_ticks(axes, index, axes.coords[beside])
                 self._exposure_ticks = (axes.coords, ticks)
-            if beside != data.ndim - 1 - other.axis:  # glue labels by spine, giving it the exposure axis' label (D30)
+            if beside != data.ndim - 1 - other.axis:  # glue labels by spine, giving it the exposure axis' label
                 along = "yx"[index]
                 axes.coords[beside].set_axislabel(
                     getattr(state, f"{along}_axislabel"),
@@ -497,7 +497,7 @@ class FrameTimeTool(Tool, HubListener):
             self.viewer.figure.canvas.draw_idle()
         self.label.setStyleSheet("color: gray" if unmatched else "")
         view = _shown_slice(state)
-        text = _frame_time(data, view, clock=True)  # short, as a narrow quicklook panel shows it (D90)
+        text = _frame_time(data, view, clock=True)  # short, as a narrow quicklook panel shows it
         if not text:
             self.label.setText("")
             return
@@ -577,8 +577,8 @@ class CursorReadoutTool(Tool):
 @viewer_tool
 class HideAxesTool(Tool):
     """
-    Switch glue's ``show_axes``, which glue-qt 0.4.2 has no control for, so draws place no ticks (D30, D71); on a
-    quicklook panel, every image panel's (`~glue_solar.quicklook._Panels`, D83). A plain tool, as a checkable one is a
+    Switch glue's ``show_axes``, which glue-qt 0.4.2 has no control for, so draws place no ticks; on a
+    quicklook panel, every image panel's (`~glue_solar.quicklook._Panels`). A plain tool, as a checkable one is a
     mouse mode, which would end Pixel.
     """
 
@@ -616,7 +616,7 @@ class PerFrameLimitsTool(Tool):
     """
     Switch glue's ``stretch_global`` of the reference data's layers, which glue-qt 0.4.2 has no control for; other data
     take their whole cube's limits again, as glue would take theirs at the reference data's slice indices (an
-    IndexError for another shape). glue-core 1.27.0 cannot restore it (``wp0-core-session-reports``).
+    IndexError for another shape). glue-core cannot restore it.
     """
 
     icon = "glue_rainbow"
@@ -663,8 +663,8 @@ def _band_mean(values, axis=None):
 class BandTool(Tool):
     """
     The map as glue's own ``AggregateSlice`` mean over 5, 9 or 15 wavelength pixels about the slider's (#169), made
-    again by a ``slices`` validator, as glue-qt 0.4.2 makes it one wavelength at any slider move
-    (``wp0-qt-aggregate-slice``); the width is that of the band the viewer shows, as a session restores it.
+    again by a ``slices`` validator, as glue-qt 0.4.2 makes it one wavelength at any slider move;
+    the width is that of the band the viewer shows, as a session restores it.
     """
 
     icon = _icon("solar_wavelength_band")
@@ -889,7 +889,7 @@ class _ColorBarAxes(Axes):
 @viewer_tool
 class ColorBarTool(Tool):
     """
-    A color bar right of the image, which glue lacks (D50, #144): glue's own coloring of the reference layer
+    A color bar right of the image, which glue lacks (#144): glue's own coloring of the reference layer
     (`_ColorBarAxes`), its room taken from the axes' margins so that the aspect keeps its proportions.
     """
 
@@ -930,7 +930,7 @@ class ColorBarTool(Tool):
 @viewer_tool
 class RasterOverlaysTool(Tool):
     """
-    Show or hide the raster overlays of the viewer's observation on all its viewers (D40, #257): plain matplotlib
+    Show or hide the raster overlays of the viewer's observation on all its viewers (#257): plain matplotlib
     lines, which sessions leave out.
     """
 
@@ -962,7 +962,7 @@ class RasterOverlaysTool(Tool):
 class FieldOfViewTool(RasterOverlaysTool):
     """
     Show or hide, on the AIA cutouts and SOT cubes of the viewer's observation, a box around its raster's field and one
-    around its slit-jaw image's (`~glue_solar.quicklook.Coordinator.field_on`, D116): plain matplotlib lines, which
+    around its slit-jaw image's (`~glue_solar.quicklook.Coordinator.field_on`): plain matplotlib lines, which
     sessions leave out.
     """
 
@@ -1027,8 +1027,8 @@ def _dkist_name(data):
 def _footprint(data, when):
     """
     ``data``, a DKIST dataset, at its frame nearest the time ``when``, its middle one for None, from its gWCS and its
-    headers' times alone, no FITS file read (D110): its outline, and of a spectrograph raster each step's slit (`_slit`,
-    as the pair quicklook draws it) and that at ``when``, none past half a cadence (D7), each as lines' helioprojective
+    headers' times alone, no FITS file read: its outline, and of a spectrograph raster each step's slit (`_slit`,
+    as the pair quicklook draws it) and that at ``when``, none past half a cadence, each as lines' helioprojective
     longitude and latitude (arcsec), a line a row, or None; None where it has no outline in its frames.
     """
     index = tuple(n // 2 for n in data._present.shape)  # along its files' axes, its first
@@ -1095,7 +1095,7 @@ class DKISTFootprintsTool(Tool, HubListener):
     """
     Draw on a helioprojective frame (`_helioprojective_frame`) each ticked DKIST dataset's outline, and a spectrograph
     raster's slit at the viewer's time (`_footprint`, `_shown_time`), its other steps faint, labeled in a color of its
-    own, again as the frame changes or the dataset goes (D110): plain matplotlib artists, which sessions leave out.
+    own, again as the frame changes or the dataset goes: plain matplotlib artists, which sessions leave out.
     """
 
     tool_id = "solar:dkist_footprints"
@@ -1177,7 +1177,7 @@ class DKISTFootprintsTool(Tool, HubListener):
 def _observer_distance(data):
     """
     The observer's distance from the Sun of ``data``, in m: its ``DSUN_OBS``, else Earth's at its ``DATE-OBS``, as
-    SSTRED files have no ``DSUN_OBS``, or ``STARTOBS``, the only time IRIS analyses' maps keep (D46); None without any.
+    SSTRED files have no ``DSUN_OBS``, or ``STARTOBS``, the only time IRIS analyses' maps keep; None without any.
     """
     meta = data.meta
     if distance := meta.get("DSUN_OBS"):
@@ -1322,8 +1322,8 @@ class _DiagramCoordinates(Coordinates):
 
 class PathData(PathSlicedData):
     """
-    glue-core's ``PathSlicedData`` of `PathTool`'s samples as given, each at its nearest pixel where glue-core 1.27.0
-    truncates (D90): NaN and NaT off the data, where glue-core gives 0 and casts times to float, its own world
+    glue-core's ``PathSlicedData`` of `PathTool`'s samples as given, each at its nearest pixel where glue-core
+    truncates: NaN and NaT off the data, where glue-core gives 0 and casts times to float, its own world
     coordinates (`_DiagramCoordinates` where the pointing moves, none where glue-core's fail otherwise) and a session
     record (#151, #191, #218).
     """
@@ -1338,7 +1338,7 @@ class PathData(PathSlicedData):
             self._coords = coords if coords.world_n_dim == coords.pixel_n_dim else None
 
     def component_ids(self):
-        # glue-core 1.27.0's session saver lists every dataset's, which only Data has: a diagram has none of its own
+        # glue-core's session saver lists every dataset's, which only Data has: a diagram has none of its own
         return []
 
     def __gluestate__(self, context):
@@ -1410,7 +1410,7 @@ class PathData(PathSlicedData):
             return BaseCartesianData.get_data(self, cid, view)
         pixel, keep, shape = self._get_pix_coords(view=view)
         component = self.original_data._components.get(cid)
-        if type(component) is DaskComponent:  # glue-core 1.27.0 gives dask the arrays, which only its vindex takes
+        if type(component) is DaskComponent:  # glue-core gives dask the arrays, which only its vindex takes
             values = component.data.vindex[tuple(pixel)].compute()
         else:
             values = np.asarray(self.original_data.get_data(cid, view=tuple(pixel)))
@@ -1422,7 +1422,7 @@ class PathData(PathSlicedData):
         return result[()]
 
 
-# glue-core 1.27.0 saves the link between two diagrams' paths as a ComponentLink through its own methods, which no
+# glue-core saves the link between two diagrams' paths as a ComponentLink through its own methods, which no
 # session opens: save the diagrams it links instead
 @saver(PathRelativeLink)
 def _save_path_link(link, context):
@@ -1535,7 +1535,7 @@ class PathTool(BasePathSlicerMode, HubListener):
             self.viewer.figure.canvas.draw_idle()
 
     def _finish_roi(self, event):
-        # glue-core 1.27.0's path ROI blits the patch it has just removed, None, if it cached a background, which raises
+        # glue-core's path ROI blits the patch it has just removed, None, if it cached a background, which raises
         # before the path is extracted; without one it redraws
         self._roi_tool._background_cache = None
         super()._finish_roi(event)
@@ -1565,7 +1565,7 @@ class PathTool(BasePathSlicerMode, HubListener):
         self._slice_viewers.append(self._slice_viewer)
 
     def _close_slice_viewers(self):
-        # as the viewer closes, without the prompt of glue-qt's close, which glue-core 1.27.0 gives: Cancel would leave
+        # as the viewer closes, without the prompt of glue-qt's close, which glue-core gives: Cancel would leave
         # a diagram without the viewer it was drawn in
         for slice_viewer in self._slice_viewers:
             slice_viewer.close(warn=False)
@@ -1577,7 +1577,7 @@ class PathTool(BasePathSlicerMode, HubListener):
 class PathCrosshairTool(BasePathSlicerCrosshairMode):
     """
     glue-core's diagram crosshair, also moving the parent viewer's other sliders to the diagram's y index, rounded
-    within each axis, where glue-core 1.27.0 truncates and passes a stack's last scan (#262).
+    within each axis, where glue-core truncates and passes a stack's last scan (#262).
     """
 
     tool_id = "solar:path_crosshair"
@@ -1668,7 +1668,7 @@ def _open_path(tool):
 def _typed_path(tool):
     """
     Make the diagrams of a path whose vertices are typed, in the pixels of the image the viewer of `PathTool` ``tool``
-    shows, as Enter does for vertices clicked (D99).
+    shows, as Enter does for vertices clicked.
     """
     text, ok = QtWidgets.QInputDialog.getMultiLineText(
         tool.viewer, "Path from points", "Each vertex on a line of its own, its x and y in the image's pixels:"
@@ -1893,7 +1893,7 @@ class _LockPoint(ApplySubsetState):
     def do(self, session):
         super().do(session)
         # the edit subset after, which glue has made a new group if there was none; a Redo locks the same groups, as
-        # Undo unlocked them (D39), unless Undo deleted their subsets, as a new group's, and glue's Redo made another
+        # Undo unlocked them, unless Undo deleted their subsets, as a new group's, and glue's Redo made another
         locked = getattr(self, "locked", None)
         if locked is None or any(s not in s.data.subsets for group in locked for s in group.subsets):
             edit = session.edit_subset_mode.edit_subset
@@ -1910,7 +1910,7 @@ class _LockPoint(ApplySubsetState):
 @viewer_tool
 class FollowLockTool(PixelSelectionTool):
     """
-    CRISPEX's cursor (D6, D39, #119): the mouse moves an unlocked or empty edit subset as a Pixel click would, with no
+    CRISPEX's cursor (#119): the mouse moves an unlocked or empty edit subset as a Pixel click would, with no
     Undo step and at most once in 50 ms; a left click locks it in one Undo step, a right click or Esc unlocks it.
     """
 
@@ -1957,7 +1957,7 @@ class FollowLockTool(PixelSelectionTool):
         state, x, y = self.viewer.state, self._event_xdata, self._event_ydata
         if x is None or y is None:
             return None
-        if _hovered(state, x, y) is None:  # another tile of a pair quicklook's mosaic, as a Pixel click (D109)
+        if _hovered(state, x, y) is None:  # another tile of a pair quicklook's mosaic, as a Pixel click
             tile = getattr(self.viewer, "tile_at", lambda *_: None)(x, y)
             return None if tile is None else PixelSubsetState(*tile)
         slices = [slice(None)] * state.reference_data.ndim
@@ -2036,7 +2036,7 @@ class _LinkPointsEntry(_CoordinateEntry):
 
 class _PointCurvesEntry(_CoordinateEntry):
     tool_id = "solar:point_curves"
-    action_text = "Light curves at the point"  # the only one, against Time (D90)
+    action_text = "Light curves at the point"  # the only one, against Time
     tool_tip = "Plot each window and slit-jaw image shown at the point against time, as new datasets that follow it"
 
     @messagebox_on_error("Could not add the light curves")
@@ -2073,7 +2073,7 @@ class _ColumnEntry(_RowEntry):
 def _first_slider(viewer):
     """
     glue-qt's slice slider of the Image viewer's first array axis (an IRIS dataset's frames, exposures, steps or
-    scans), a DKIST pair's of its time axis (D105), or None where it has none, as while the viewer shows that axis.
+    scans), a DKIST pair's of its time axis, or None where it has none, as while the viewer shows that axis.
     """
     sliders = viewer.options_widget().slice_helper._sliders
     axis = describe.time_axis(viewer.state.reference_data) or 0
@@ -2083,7 +2083,7 @@ def _first_slider(viewer):
 class _GoToUTCEntry(_CoordinateEntry):
     """
     Move the observation's time master, or without one the viewer's slider of time (`_first_slider`), to its index
-    nearest a typed UTC time; nothing past half its cadence (D7, D38).
+    nearest a typed UTC time; nothing past half its cadence.
     """
 
     tool_id = "solar:go_to_utc"
@@ -2108,7 +2108,7 @@ class _GoToUTCEntry(_CoordinateEntry):
             raise ValueError("The viewer has no frame, exposure, step or scan slider of timed data.")
         moved = data if master is None else master
         index, step = coordinator._timing(moved)
-        axis = describe.time_axis(data) or 0  # a DKIST pair's time axis (D105)
+        axis = describe.time_axis(data) or 0  # a DKIST pair's time axis
         if master is None:
             index = getattr(state.slices[axis], "center", state.slices[axis])
         times = describe.times(moved, step)
@@ -2296,7 +2296,7 @@ class SaveSequenceTool(Tool):
         stem, suffix = os.path.splitext(path)
         if suffix.lower() not in _SEQUENCE_FILTERS:  # none typed: the chosen filter's
             stem, suffix = path, next((s for s, text in _SEQUENCE_FILTERS.items() if text == chosen), ".png")
-        # ponytail: PillowWriter holds every GIF frame in memory until the end (+0.7 GiB for 400 frames of 788 × 597),
+        # shortcut: PillowWriter holds every GIF frame in memory until the end (+0.7 GiB for 400 frames of 788 × 597),
         # where an MP4 streams to ffmpeg; stream the frames to Pillow if long GIFs matter
         movie = {".mp4": animation.FFMpegWriter, ".gif": animation.PillowWriter}.get(suffix.lower())
         indices = range(first, last + 1)
@@ -2436,7 +2436,7 @@ def _profile_table(viewer):
             profile = None if artist.is_computing or not artist.enabled else layer.profile
         except Exception:  # glue's own limits skip a layer whose profile raises
             profile = None
-        # glue 1.27.0 gives a subset one sample wide along x a single value, which it cannot draw
+        # glue gives a subset one sample wide along x a single value, which it cannot draw
         if profile is None or not 0 < len(profile[0]) == len(profile[1]):
             skipped.append(layer.layer.label)
             continue
@@ -2453,7 +2453,7 @@ def _profile_table(viewer):
         if isinstance(subset, PixelSubsetState):
             fixed = subset._to_linked_pixel_coords(data)
             meta["pixel"] = {c.label: p for c, p in zip(data.pixel_component_ids, fixed, strict=True) if p is not None}
-        elif isinstance(subset, SliceSubsetState) and subset.reference_data is data:  # a cut (D58)
+        elif isinstance(subset, SliceSubsetState) and subset.reference_data is data:  # a cut
             fixed = [s.start for s in subset.slices]
         name = disambiguate(as_variable_name(layer.layer.label), names)
         names.append(name)
@@ -2541,7 +2541,7 @@ class MainWindowTool(Tool):
 
 def _position(viewer):
     """
-    The Image viewer's position, D41's A or B: its reference data, slider position, layers with per-frame limits,
+    The Image viewer's position, a blink's A or B: its reference data, slider position, layers with per-frame limits,
     which `PerFrameLimitsTool` turns off as other data is shown, and visible layers, which a blink flip hides.
     """
     state = viewer.state
@@ -2558,7 +2558,7 @@ def _layers_of(state, data):
 
 def _show_position(viewer, coordinator, data, slices, per_frame=(), visible=()):
     """
-    Show ``data`` at ``slices`` as a blink flip (D41): axes, zoom, point and time sync stay, a follower at its time
+    Show ``data`` at ``slices`` as a blink flip: axes, zoom, point and time sync stay, a follower at its time
     sync index; glue resets them for other data, so they are set again, as are its layers' per-frame limits
     ``per_frame``, which `PerFrameLimitsTool` turned off as it was left; and the data left is hidden, as glue would
     retry its disabled layer at every draw (about a second on a full raster). Of the layers of ``data`` only
@@ -2570,7 +2570,7 @@ def _show_position(viewer, coordinator, data, slices, per_frame=(), visible=()):
         if data is shown:
             state.slices = slices
             return
-        index, axis = coordinator.following(data), describe.time_axis(data) or 0  # a DKIST pair's time axis (D105)
+        index, axis = coordinator.following(data), describe.time_axis(data) or 0  # a DKIST pair's time axis
         if index is not None and not isinstance(slices[axis], AggregateSlice):
             slices = (*slices[:axis], index, *slices[axis + 1 :])
         for layer in visible:
@@ -2643,7 +2643,7 @@ def _frame_key(delta, session):
     viewer, sync, master = _pressed(session)
     if master is not None:
         index, _ = sync._timing(master)
-        # a DKIST pair's (D105)
+        # a DKIST pair's
         sync.move_master(master, (index + delta) % master.shape[describe.time_axis(master) or 0])
     elif isinstance(viewer, ImageViewer):
         _step(_first_slider(viewer), delta)
@@ -2669,7 +2669,7 @@ def _wavelength_key(delta, session):
 def _play_key(session):
     """
     Space: play the first slider of a viewer of the time master, one with a loop first, or without one the active
-    viewer's, or pause any of these playing (D61).
+    viewer's, or pause any of these playing.
     """
     viewer, sync, master = _pressed(session)
     viewers = dict.fromkeys([viewer, *([] if master is None else sync._viewers_of(master))])
@@ -2747,8 +2747,8 @@ def _submenu(menu, title, tool_tip):
 @viewer_tool
 class CoordinateTool(_ToolMenu):
     """
-    Register the viewer with its collection's `~glue_solar.quicklook.Coordinator` (D9), with the menu of time entries
-    and the 'Point' and 'Blink' submenus (D61); on a slit-jaw image draw the frame's slit, the raster point and the
+    Register the viewer with its collection's `~glue_solar.quicklook.Coordinator`, with the menu of time entries
+    and the 'Point' and 'Blink' submenus; on a slit-jaw image draw the frame's slit, the raster point and the
     raster overlays.
     """
 
@@ -2772,7 +2772,7 @@ class CoordinateTool(_ToolMenu):
         self.coordinator = coordinator(viewer._data)
         self.coordinator.register(viewer)
         viewer.destroyed.connect(self._forget)
-        self.partner = None  # the position the viewer does not show, which the blink shows next (D41)
+        self.partner = None  # the position the viewer does not show, which the blink shows next
         self._blink = QtCore.QTimer(viewer)
         self._blink.setInterval(500)
         self._blink.timeout.connect(self._flip)

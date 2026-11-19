@@ -62,8 +62,8 @@ def _slice_shown(tiles, data_collection):
 def _add_mosaic(data_collection, tiles, at, image):
     """
     Add ``image``, the mosaic of ``tiles`` at ``at``, linked to them and to other data by 'Link helioprojective
-    coordinates', and to each tile's time there (`_mosaic_links`, D108), and open it in an Image viewer at 99.5 %
-    limits, as a quicklook's panels, where glue's Min/Max, of a few hot pixels, showed it flat (D109).
+    coordinates', and to each tile's time there (`_mosaic_links`), and open it in an Image viewer at 99.5 %
+    limits, as a quicklook's panels, where glue's Min/Max, of a few hot pixels, showed it flat.
     """
     data_collection.append(image)
     data_collection.add_link(_mosaic_links(image, tiles, at))
@@ -83,9 +83,9 @@ def _add_mosaic(data_collection, tiles, at, image):
 @messagebox_on_error("Could not make the mosaic")
 def mosaic_dkist(data, data_collection):
     """
-    Add the loaded tiles of the DKIST mosaic of ``data`` reprojected into one image in the background (`_mosaic_image`,
-    D108), at the frame, Stokes parameter, repeat and wavelength an Image viewer shows them at (`_slice_shown`), linked
-    to them and to other data by 'Link helioprojective coordinates', and open it in an Image viewer.
+    Add the loaded tiles of the DKIST mosaic of ``data`` reprojected into one image in the background (`_mosaic_image`),
+    at the frame, Stokes parameter, repeat and wavelength an Image viewer shows them at (`_slice_shown`), linked to them
+    and to other data by 'Link helioprojective coordinates', and open it in an Image viewer.
     """
     _check_mosaic(data)
     tiles = [tile for tile in data._mosaic if tile in data_collection]
@@ -104,7 +104,7 @@ def _check_frames(data):
 class _FrameCurves(QtCore.QObject):
     """
     Keep ``frames``, the frame quality of DKIST dataset ``data`` (`_frame_quality`), in Profile viewer ``profile`` and
-    the time sliders of the Image viewers of ``data``, or of a tile of its mosaic, following each other by time (D110):
+    the time sliders of the Image viewers of ``data``, or of a tile of its mosaic, following each other by time:
     a line at the row nearest the frame the last moved shows; a click on the curves, with no toolbar mode on, moves each
     to its frame nearest that row's time, at its own Stokes parameter; the frames whose AO was not locked shaded and
     the y axis named by the attribute shown. Not saved in sessions.
@@ -241,8 +241,8 @@ class _FrameCurves(QtCore.QObject):
 @messagebox_on_error("Could not show the frame quality")
 def frame_quality_dkist(data, data_collection):
     """
-    Add the frame quality of ``data``, a DKIST dataset or a tile of a mosaic, from its headers (`_frame_quality`,
-    D110), linked to it by ``Time``, or take the one added before, and open it in a Profile viewer that follows the time
+    Add the frame quality of ``data``, a DKIST dataset or a tile of a mosaic, from its headers (`_frame_quality`),
+    linked to it by ``Time``, or take the one added before, and open it in a Profile viewer that follows the time
     sliders of its Image viewers and moves them (`_FrameCurves`): the seeing, ``ATMOS_R0``, else the light level,
     ``LIGHTLVL``, the frames whose AO was not locked shaded; the others are the layer's attributes.
     """
@@ -325,7 +325,7 @@ def _download_summary(tiles, index):
 def _ask_download(tiles, at):
     """
     The index along the FITS files' axes of ``tiles``, a DKIST dataset or a mosaic's loaded tiles, of those to
-    download, asked in a dialog (D110): along each axis ``at``, its viewer's slider, such as its Stokes parameter and
+    download, asked in a dialog: along each axis ``at``, its viewer's slider, such as its Stokes parameter and
     repeat, or all of it where ticked; along its steps or frames the range typed, all at first. It says how many files
     are missing and their size (`_download_summary`) as they change; None for Cancel.
     """
@@ -372,7 +372,7 @@ def _ask_download(tiles, at):
 def _watch_download(data_collection, label, pending):
     """
     Look every `DOWNLOAD_POLL` ms until all of ``pending``, FITS files of DKIST datasets by path, each a dataset and the
-    file's index, are in their folder, glue's status bar saying how many are (D110): a file of the same size and time
+    file's index, are in their folder, glue's status bar saying how many are: a file of the same size and time
     at two looks is whole, as Globus may write it in place; until then it reads as missing (`_ARRIVING`). Each whole
     file is marked present (``_present``), and its frame drawn, the color limits of its dataset, a mosaic's tiles all,
     taken again from the frames present, in every viewer; once all are, glue's Error Console says how many of the
@@ -380,9 +380,9 @@ def _watch_download(data_collection, label, pending):
     grew, as of a transfer that failed, the watch ends, the Error Console saying so, and those left read as they are,
     for 'Download these frames…' to offer them again.
     """
-    # ponytail: a transfer stalled one look mid-file reads as whole; Globus's task status if that happens
+    # shortcut: a transfer stalled one look mid-file reads as whole; Globus's task status if that happens
     app, total, seen, idle = _application(data_collection), len(pending), {}, 0
-    if app is None:  # its window closed while the transfer started: its files read as they are, as a session's (D110)
+    if app is None:  # its window closed while the transfer started: its files read as they are, as a session's
         return
     datasets, folder = next(iter(pending.values()))[0]._mosaic, Path(next(iter(pending))).parent
     _ARRIVING.update(pending)
@@ -416,10 +416,10 @@ def _watch_download(data_collection, label, pending):
             return
         for tile in arrived:
             tile._samples.clear()  # its color limits' sample, a mosaic's tiles' too
-            tile.__dict__.pop("_noise_cached", None)  # its Stokes parameters' noise (D107)
+            tile.__dict__.pop("_noise_cached", None)  # its Stokes parameters' noise
         for viewer in (viewer for tab in app.viewers for viewer in tab):
             for artist in viewer.layers:
-                if artist.layer.data in datasets:  # a tile, or a subset of one: the sample is its mosaic's (D102)
+                if artist.layer.data in datasets:  # a tile, or a subset of one: the sample is its mosaic's
                     limits = getattr(artist.state, "attribute_lim_helper", None)  # an Image layer's
                     if limits is not None:
                         limits.update_values(force=True)  # but limits typed (glue's 'Custom')
@@ -449,7 +449,7 @@ def download_dkist(data, data_collection):
     Start a Globus transfer in the background of the missing FITS files of ``data``, a DKIST dataset, or of its
     mosaic's loaded tiles, chosen in a dialog (`_ask_download`) at the Stokes parameter, repeat and measurement of its
     first Image viewer (`_shown_at`), into its ASDF file's folder; those files alone, not dkist's ASDF file, movie and
-    quality report (`_transfer`, D110). Their frames fill in as they arrive (`_watch_download`).
+    quality report (`_transfer`). Their frames fill in as they arrive (`_watch_download`).
     """
     _check_download(data)
     tiles = [tile for tile in data._mosaic if tile in data_collection]

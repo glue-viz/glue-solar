@@ -1,6 +1,6 @@
 """
 The red wing less the blue wing of a line at given velocities in a raster window or a stack of its scans, as a new
-dataset (D16), for 'IRIS: line maps…' (`~glue_solar.sources.moments`).
+dataset, for 'IRIS: line maps…' (`~glue_solar.sources.moments`).
 """
 
 import numpy as np
@@ -72,7 +72,7 @@ def doppler_image(data, rest, velocities=VELOCITIES, normalized=False):
 
     Each wing is the window's ``<label> DN / s`` where it has one, else its values, interpolated linearly at
     ``rest * (1 ± v / c)``, the optical Doppler shift of velocity v, between the two samples about it; NaN where
-    either sample is missing or saturated, as the window's mask marks the Level 2 ceiling, 16182 DN (D85). Its
+    either sample is missing or saturated, as the window's mask marks the Level 2 ceiling, 16182 DN. Its
     components are ``red - blue <v> km / s``, in that unit, positive for a brighter red wing, and with ``normalized``,
     ``(red - blue) / (red + blue) <v> km / s``, NaN where a wing is not positive. ``meta`` holds the observation's
     ``OBSID`` and ``STARTOBS``, ``doppler_rest``, ``doppler_velocities`` and ``doppler_sign``, ``"red - blue"``. The

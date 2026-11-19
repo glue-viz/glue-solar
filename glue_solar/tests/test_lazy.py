@@ -307,7 +307,7 @@ def test_int16_rasters_load_lazily_and_float32_ones_as_before(monkeypatch, tmp_p
     for lazy_result, eager in zip(*lazy_and_eager(monkeypatch, lambda: iris_data(int16_raster)), strict=True):
         assert lazy_result.label == eager.label
         assert_loads_as_before(lazy_result, eager)
-    # a negative raster step, which irispy flips (D10), and a gzipped file, held in memory as int16
+    # a negative raster step, which irispy flips, and a gzipped file, held in memory as int16
     source = find_irispy_test_file(irispy_test_files, RASTER)
     flipped = int16_raster_copy(source, tmp_path / "flipped" / RASTER, STEPS_AV=-1.0)
     gzipped = int16_raster_copy(source, tmp_path / "gzipped" / f"{RASTER}.gz")
@@ -331,7 +331,7 @@ def test_int16_rasters_load_lazily_and_float32_ones_as_before(monkeypatch, tmp_p
 
 def test_raster_files_stored_differently_load_as_before(monkeypatch, tmp_path, int16_raster, irispy_test_files):
     # an int16 copy beside irispy's float32 file, which irispy reads first: each scan and their stack; and gzipped,
-    # the float32 file read after the int16 one, each from its copy in memory (D97)
+    # the float32 file read after the int16 one, each from its copy in memory
     source = find_irispy_test_file(irispy_test_files, RASTER)
     gzipped = [int16_raster_copy(source, tmp_path / "a" / f"{RASTER}.gz"), tmp_path / "b" / f"{RASTER}.gz"]
     gzipped[1].parent.mkdir()
@@ -377,7 +377,7 @@ def test_int16_slit_jaw_and_aia_cubes_load_lazily(monkeypatch, tmp_path, irispy_
 def test_the_level_2_ceiling_loads_as_irispy_reads_it(monkeypatch, tmp_path, int16_raster, irispy_test_files):
     """
     Raw 32760, the Level 2 ceiling, loads as 16182 DN, in the color limits, and masked, saturated, in raster windows
-    and slit-jaw images, not in AIA cutouts, as irispy's scaled reads give them (D85).
+    and slit-jaw images, not in AIA cutouts, as irispy's scaled reads give them.
     """
     source = find_irispy_test_file(irispy_test_files, SJI)
     sji = int16_copy(source, tmp_path / SJI, [0])
@@ -476,7 +476,7 @@ def test_a_gzipped_slit_jaw_file_is_decompressed_once(monkeypatch, tmp_path, iri
 
 def test_a_gzipped_raster_file_is_decompressed_once(monkeypatch, tmp_path, irispy_test_files):
     # its window headers and irispy's read from one copy in memory (irispy #275), where the header pass inflated it
-    # too; each file of a stack's just before irispy reads it (D97), and with LAZY off irispy's read alone
+    # too; each file of a stack's just before irispy reads it, and with LAZY off irispy's read alone
     source = find_irispy_test_file(irispy_test_files, RASTER)
     plain = int16_raster_copy(source, tmp_path / "plain" / RASTER)
     gzipped = int16_raster_copy(source, tmp_path / "gzipped" / f"{RASTER}.gz")

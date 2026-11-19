@@ -129,10 +129,10 @@ def test_setup_registers_hooks():
     glue_solar.setup()
     glue_solar.setup()  # glue calls it once; tests and reloads must not duplicate the tool
     # glue-qt's Slice Extraction plugin, as glue loads it where its entry points list it after this one: Path diagram
-    # is the one path tool (D90)
+    # is the one path tool
     pv_slicer.setup()
     assert "slice" not in ImageViewer.tools
-    # the Plugins menu's entries, as they register; quicklooks open from 'Quicklook…' (D83)
+    # the Plugins menu's entries, as they register; quicklooks open from 'Quicklook…'
     assert [(label, callback) for label, callback in menubar_plugin if callback.__module__[:10] == "glue_solar"] == [
         ("Browse observations…", browse_iris),
         ("Link helioprojective coordinates", link_iris),
@@ -187,7 +187,7 @@ def test_setup_registers_hooks():
 
 
 def test_glue_shows_glue_solars_icon(app, tmp_path):
-    # the macOS app's icon on the application, its window, its viewers and a quicklook panel's title bar (D90, P8)
+    # the macOS app's icon on the application, its window, its viewers and a quicklook panel's title bar
     ours = QIcon(os.path.join(os.path.dirname(glue_solar.__file__), "icons", "glue_solar.png")).pixmap(32).toImage()
     viewer = app.new_data_viewer(ImageViewer)
     cube, _ = spectral_cube(tmp_path / "cube.fits", (7, 12, 16))
@@ -265,7 +265,7 @@ def test_only_entries_for_iris_data_alone_say_iris(app, tmp_path):
     """
     'IRIS: ' starts the data actions that take IRIS data alone, those a spectral cube of another instrument, two plain
     maps and a DKIST mosaic's tile are not offered, and no entry of glue-solar's names what it applies to in
-    parentheses (D90).
+    parentheses.
     """
     from glue_solar.tests.test_dkist import vbi_like
 
@@ -299,7 +299,7 @@ def test_only_entries_for_iris_data_alone_say_iris(app, tmp_path):
 
 
 def test_quicklook_opens_each_kind(app, tmp_path, irispy_test_files):
-    """'Quicklook…' opens an IRIS raster's or slit-jaw image's observation, an SST cube or a spectral cube (D83)."""
+    """'Quicklook…' opens an IRIS raster's or slit-jaw image's observation, an SST cube or a spectral cube."""
     sns = raster_data([find_irispy_test_file(irispy_test_files, RASTER)], ["Si IV 1403", "Mg II k 2796"])
     sji = image_data(find_irispy_test_file(irispy_test_files, SJI))
     write_sst_cube(tmp_path / "sst.fits")
@@ -514,7 +514,7 @@ def test_frame_time_tool_follows_the_sliders(app, irispy_test_files):
     viewer = app.new_data_viewer(ImageViewer, data=sji)
     tool = viewer.toolbar.tools["solar:frame_time"]
     stamp = [np.datetime_as_string(t, unit="ms") for t in sji["Time"][:, 0, 0]]
-    clock = [time[11:19] for time in stamp]  # the time of day, the date and milliseconds in the tooltip (D90)
+    clock = [time[11:19] for time in stamp]  # the time of day, the date and milliseconds in the tooltip
     exposure = sji["Exposure time"][:, 0, 0]
 
     viewer.state.slices = (5, 0, 0)
@@ -554,7 +554,7 @@ def test_an_empty_collapse_range_draws_and_keeps_the_frame_time(app):
     app.data_collection.append(cube)
     viewer = app.new_data_viewer(ImageViewer, data=cube)
     viewer.state.slices = (AggregateSlice(slice(2, 2), 2, np.nanmean), 0, 0)  # a Profile Collapse inside sample 2
-    viewer.figure.canvas.draw()  # glue 1.27.0 alone raises here, and in every later draw
+    viewer.figure.canvas.draw()  # glue alone raises here, and in every later draw
     assert viewer.state.slices[0].slice == slice(2, 3)
     assert viewer.toolbar.tools["solar:frame_time"].label.text() == "12:00:00"
 
@@ -639,7 +639,7 @@ def test_toolbar_menus_hold_the_mouse_modes_and_display_tools(app, qtbot, monkey
     viewer = app.new_data_viewer(ImageViewer, data=cube)
     toolbar = viewer.toolbar
     assert len(QToolBar.actions(toolbar)) <= 20  # of 26 buttons before, which needed a viewer 1200 px wide
-    assert "slice" not in toolbar.tools  # glue-qt's Slice Extraction: Path diagram is the one path tool (D90)
+    assert "slice" not in toolbar.tools  # glue-qt's Slice Extraction: Path diagram is the one path tool
     # glue-solar's buttons right after glue's Home, Pan and Zoom, so that a narrow viewer hides glue's tools first
     ids = {id(action): tool_id for tool_id, action in toolbar.actions.items()}
     order = [ids.get(id(action)) for action in QToolBar.actions(toolbar)]
@@ -766,7 +766,7 @@ def test_hide_axes(app, qtbot, monkeypatch, irispy_test_files):
     sji = load_data(str(sji))
     app.data_collection.append(sji)
     shown, hidden = (app.new_data_viewer(ImageViewer, data=sji) for _ in range(2))
-    assert (hidden.state.show_axes, hidden.axes.axison) == (True, True)  # glue's default for a new viewer (D83)
+    assert (hidden.state.show_axes, hidden.axes.axison) == (True, True)  # glue's default for a new viewer
     hidden.state.show_axes = False  # as 'Hide axes' sets it
     assert (shown.state.show_axes, shown.axes.axison, hidden.axes.axison) == (True, True, False)
     placed = Counter()
@@ -1149,7 +1149,7 @@ def test_sky_length_on_a_raster_map(app, irispy_test_files):
     assert sky_length(viewer, [0, 7], [10, 90])[1] == pytest.approx(_separation(lon, lat, u.arcsec))
     # a -TAB raster has no coordinates past its outer steps
     assert sky_length(viewer, [-1, 3], [10, 90])[1:] == (None, None)
-    # its maps keep no DSUN_OBS, only STARTOBS (D46): km at Earth's distance then
+    # its maps keep no DSUN_OBS, only STARTOBS: km at Earth's distance then
     maps = line_moments(data, 1335.71)
     app.data_collection.append(maps)
     viewer = app.new_data_viewer(ImageViewer, data=maps)
@@ -1197,7 +1197,7 @@ def test_path_diagrams_of_a_slit_jaw_image_and_a_raster_on_it(app, irispy_test_f
     viewer.add_data(raster)
     viewer.state.slices = (5, 0, 0)
     assert viewer.toolbar.tools["solar:path"].enabled
-    assert "slice" not in viewer.toolbar.tools  # glue-qt's Slice Extraction (D90)
+    assert "slice" not in viewer.toolbar.tools  # glue-qt's Slice Extraction
     path, on_raster = _draw_path(viewer, [5, 18, 30], [3, 20, 35])
     diagrams = viewer.toolbar.tools["solar:path"]._slice_viewer
     assert [layer.layer for layer in diagrams.layers] == [path]  # the raster's, on frames, would be disabled
@@ -1306,7 +1306,7 @@ def test_path_diagram_samples_the_nearest_pixel(app):
     flux = grid.id["flux"]
     np.testing.assert_array_equal(path[flux], _along(grid, flux, path))
     # halfway rounds up, and a sample nearest a pixel off the data is NaN, where glue-core's truncation gives 200, 201,
-    # 1115 and 315 on frame 0 (D90)
+    # 1115 and 315 on frame 0
     path.set_xy([0.5, 1.49, 15.4, 15.6], [2.5, 2.5, 11.4, 3.0])
     np.testing.assert_array_equal(path[flux], [[301, 301, 1115, np.nan], [1301, 1301, 2115, np.nan]])
     when = np.repeat(times[:, :1, 0], 4, axis=1)
@@ -1478,7 +1478,7 @@ def test_a_path_diagram_reopens_from_ecsv_and_from_a_session(app, qtbot, monkeyp
     np.testing.assert_allclose(table["lat"].to_value(u.arcsec), lat * 3600, rtol=0, atol=1e-6)
     np.testing.assert_allclose(table["distance"].to_value(u.arcsec), 0.1663 * np.arange(len(table)), rtol=1e-6)
     assert table["distance_km"][1].to_value(u.km) == pytest.approx(120.6143, rel=1e-6)
-    # opened on the cube, it makes the same diagrams again, an older file's sampling ignored (D90)
+    # opened on the cube, it makes the same diagrams again, an older file's sampling ignored
     table.meta["sampling"] = "linear"
     table.write(file, overwrite=True)
     _modes_entry(viewer, entries[1]).trigger()
@@ -2092,7 +2092,7 @@ def test_axis_label_workaround_installs_only_where_glue_needs_it(app, qtbot, mon
     coords = viewer.axes.coords
     viewer.state.slices = (5, 0, 0)  # a frame step
     assert viewer.axes.coords is not coords  # glue reset the axes, and set both labels twice
-    # glue-core 1.27.0 alone: 2 set_xlabel, 2 set_ylabel and 12 tick updates, then the draw places them again
+    # glue-core alone: 2 set_xlabel, 2 set_ylabel and 12 tick updates, then the draw places them again
     assert calls == {}
     viewer.figure.canvas.draw()
     assert calls == {"_update_ticks": 3}  # one per coordinate: longitude, latitude and the hidden time
@@ -2118,7 +2118,7 @@ def test_a_2021_scatter_ticks_in_2021(app):
     viewer = app.new_data_viewer(ScatterViewer, data=data)
     viewer.state.x_att = data.id["time"]
     viewer.figure.canvas.draw()
-    assert {date.year for date in mdates.num2date(viewer.axes.get_xlim())} == {2021}  # glue 1.27.0 alone: 3990
+    assert {date.year for date in mdates.num2date(viewer.axes.get_xlim())} == {2021}  # glue alone: 3990
 
 
 def test_a_scatter_plot_of_linked_times(app):
@@ -2131,7 +2131,7 @@ def test_a_scatter_plot_of_linked_times(app):
     app.data_collection.add_link([LinkSame(first.id[name], second.id[name]) for name in ("time", "value")])
     viewer = app.new_data_viewer(ScatterViewer, data=first)
     viewer.state.x_att = first.id["time"]
-    viewer.add_data(second)  # glue 1.27.0 alone: "Unknown data kind"
+    viewer.add_data(second)  # glue alone: "Unknown data kind"
     assert all(layer.enabled for layer in viewer.layers)
 
 
@@ -2320,7 +2320,7 @@ def test_lines_in_this_range_lists_the_strongest_first_and_ticks_label_or_hide(a
     o_iv = next(item for item in items if item.text().startswith("O IV 1401.157"))
     other = next(item for item in items if not item.text().startswith(("Si", "O", "S")))
     lines = viewer.toolbar.tools["solar:lines"]
-    assert [o_iv.checkState(), other.checkState()] == [Qt.Checked, Qt.Unchecked]  # a main line shows (D98)
+    assert [o_iv.checkState(), other.checkState()] == [Qt.Checked, Qt.Unchecked]  # a main line shows
     other.setCheckState(Qt.Checked)  # labeled
     o_iv.setCheckState(Qt.Unchecked)  # hidden
     assert lines.labeled == [other.data(Qt.UserRole)]
@@ -2372,7 +2372,7 @@ def test_profiles_label_the_main_iris_lines(app, irispy_test_files):
     # the window's lines at their vacuum wavelengths; 2798.754 and 2798.823 Å share a label between them
     assert [name for name, _ in labels()] == ["Mg II", "Mg II k", "Mg II", "Ni I", "Mg II h"]
     assert [x for _, x in labels()] == pytest.approx([2791.599, 2796.352, 2798.7885, 2799.47, 2803.530])
-    # zoomed out, Mg II k and the triplet closer than a label is wide: the triplet's goes below k's (P8)
+    # zoomed out, Mg II k and the triplet closer than a label is wide: the triplet's goes below k's
     viewer.state.x_min, viewer.state.x_max = 2700, 2900
     texts = [artist for artist in tool.artists if isinstance(artist, Text)]
     _, k, triplet, _ = texts
@@ -2620,7 +2620,7 @@ def test_profiles_save_as_drawn_to_ecsv(app, monkeypatch, tmp_path, irispy_test_
     [stack] = raster_data(files, ["Si IV 1403"], stack=True)
     app.data_collection.append(stack)
     stack.new_subset(PixelSubsetState(stack, [slice(None), slice(1, 2), slice(3, 4), slice(4, 5)]), label="Scans")
-    # a scripted slice subset along scans over a band, shaped as a cut's (D58)
+    # a scripted slice subset along scans over a band, shaped as a cut's
     stack.new_subset(SliceSubsetState(stack, [slice(None), slice(1, 2), slice(3, 4), slice(4, 8)]), label="Band")
     viewer = app.new_data_viewer(ProfileViewer, data=stack)
     viewer.state.x_att = stack.pixel_component_ids[0]
@@ -2675,7 +2675,7 @@ def test_profile_fit_tab_fits_a_gaussian_on_a_constant(app, qtbot, monkeypatch, 
         qtbot.waitUntil(lambda: "km / s" in tools.text_log.toPlainText())
         return tools.text_log.toPlainText().splitlines()
 
-    # the fill left out, its center and its velocity from the rest wavelength, O I 1355.59767, or one set (D11)
+    # the fill left out, its center and its velocity from the rest wavelength, O I 1355.59767, or one set
     assert fit()[-1] == "center_1 = 1355.620000, +4.94 km / s from 1355.59767 Å"
     data.meta["rest_wavelength"] = 1355.65
     assert fit()[-1] == "center_1 = 1355.620000, -6.63 km / s from 1355.65 Å"
@@ -2764,7 +2764,7 @@ def test_the_iris_fit_leaves_saturated_samples_out(app, qtbot, monkeypatch):
     A Point's spectrum of a raster window whose line peaks 4x over the Level 2 ceiling, its core stored at 16182 DN, a
     lower bound only: the IRIS fit leaves those samples out, says how many and fits the line above the ceiling, as for
     the Mean of a region where every pixel is so; a Point's spectrum with none says nothing more; the Mean of the
-    window, where some pixels are not saturated, keeps them, biased low, and says how many (D87).
+    window, where some pixels are not saturated, keeps them, biased low, and says how many.
     """
     x = 1355 + 0.025 * np.arange(49)
     line = 100 + 4 * 16182 * np.exp(-0.5 * ((x - 1355.6) / 0.04) ** 2)
@@ -2822,7 +2822,7 @@ def _fit_two_lines(qtbot, monkeypatch, data, x_range):
     """
     The mean profile of ``data`` over ``x_range`` fitted in a Profile viewer with a second Gaussian added in Settings,
     then with its width tied to the first's, the reports' values by name, the parameters each Settings opened with and
-    the Fit tab (D81, D86).
+    the Fit tab.
     """
     glue_solar.setup()
     app = GlueApplication()
@@ -2859,7 +2859,7 @@ def _fit_two_lines(qtbot, monkeypatch, data, x_range):
 
 
 def test_the_mg_ii_preset_fits_both_emission_peaks(qtbot, monkeypatch):
-    # D98: 'Mg II two peaks' sets two Gaussians on a constant, which start at the blue and red emission peaks of a
+    # 'Mg II two peaks' sets two Gaussians on a constant, which start at the blue and red emission peaks of a
     # Mg II k core, either side of its central reversal, and not at that reversal or at the range's blue edge, both
     # below the median, the edge further than the red peak is above it
     glue_solar.setup()
@@ -2886,7 +2886,7 @@ def test_the_mg_ii_preset_fits_both_emission_peaks(qtbot, monkeypatch):
 
 
 def test_a_model_saved_and_opened_again_gives_the_same_settings(qtbot, monkeypatch, tmp_path):
-    # D99: Save… writes the components and each parameter's settings, Open… reads them into another fitter's Settings
+    # Save… writes the components and each parameter's settings, Open… reads them into another fitter's Settings
     path = str(tmp_path / "model.json")
     monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *args: (path, ""))
     monkeypatch.setattr(QFileDialog, "getOpenFileName", lambda *args: (path, ""))
@@ -2932,7 +2932,7 @@ def test_the_iris_fitter_fits_the_lines_added_in_settings(qtbot, monkeypatch):
     # the fit, then each line on the background, dashed, all cleared by Clear (glue_patches._plot_fit)
     _, *lines = artists = tools._fit_artists[:]
     assert [artist.get_linestyle() for artist in artists] == ["-", "--", "--"]
-    # in a darker shade of the layer's color, wider and above it (D98)
+    # in a darker shade of the layer's color, wider and above it
     layer = tools.viewer.state.layers[0]
     shade = np.array(to_rgb(layer.color))
     assert [to_hex(artist.get_color()) for artist in artists] == [to_hex(shade * 0.55)] * 3
@@ -2943,7 +2943,7 @@ def test_the_iris_fitter_fits_the_lines_added_in_settings(qtbot, monkeypatch):
         np.testing.assert_allclose(line.get_ydata(), model[0](line.get_xdata()) + model[index](line.get_xdata()))
     tools.ui.button_clear.click()
     assert not any(artist in tools.axes.lines for artist in artists)
-    layer.color = "k"  # lighter for a dark color (D98)
+    layer.color = "k"  # lighter for a dark color
     tools.ui.button_fit.click()
     qtbot.waitUntil(lambda: bool(tools._fit_artists))
     assert to_hex(tools._fit_artists[0].get_color()) == "#808080"
@@ -2951,7 +2951,7 @@ def test_the_iris_fitter_fits_the_lines_added_in_settings(qtbot, monkeypatch):
 
 def test_the_iris_fit_settings_compose_a_model(app, monkeypatch):
     """
-    The IRIS fitter's Settings (D86): components added and removed, a start, Fixed, one-sided bounds and ties of a
+    The IRIS fitter's Settings: components added and removed, a start, Fixed, one-sided bounds and ties of a
     line to one above it reach the model and show on reopening; a removed line's ties are dropped, Cancel keeps the
     settings, and a field that is not a number or no component is refused.
     """
@@ -3053,7 +3053,7 @@ def test_a_chain_of_ties_fits_from_its_root():
     """
     C II's lines, the third's center, amplitude and width tied to the second's and the second's to the first's: each
     follows its chain to the first, as astropy computes a tie from the values before any; the first starts at its own
-    peak, not the stronger blend's, the second's center its separation away (D86).
+    peak, not the stronger blend's, the second's center its separation away.
     """
     x = 1334 + 0.01 * np.arange(250)
     centers, amplitudes = (1334.53, 1335.66, 1335.71), (20, 40, 10)
@@ -3089,7 +3089,7 @@ def test_the_iris_fitter_fits_the_c_ii_pair_as_two_lines(qtbot, monkeypatch, iri
     centers = [float(report[f"center_{line}"].split(",")[0]) for report in (two, same) for line in (1, 2)]
     # within 0.1 km / s: the fitter's step differs between astropy versions
     assert centers == pytest.approx([1334.5958, 1335.7652, 1334.5966, 1335.7651], abs=5e-4)
-    # both from the window's rest wavelength, C II 1335.7079 Å for the 1336 it is named for (D11)
+    # both from the window's rest wavelength, C II 1335.7079 Å for the 1336 it is named for
     assert [two[f"center_{line}"].split(", ")[1] for line in (1, 2)] == [
         "-249.60 km / s from 1335.7079 Å",
         "+12.85 km / s from 1335.7079 Å",
