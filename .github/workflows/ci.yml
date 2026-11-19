@@ -97,6 +97,18 @@ jobs:
           cache-key: pooch-${{ github.sha }}
           cache-restore-keys: pooch-
 
+  other_systems:
+    # the tests on macOS and Windows, where glue-solar has users too: the jobs above run on Linux alone
+    needs: [core]
+    uses: OpenAstronomy/github-actions-workflows/.github/workflows/tox.yml@e25a8c5d18e2499bdc4381670917b73e3107dca1  # v3.1.1
+    with:
+      submodules: false
+      toxdeps: tox-pypi-filter
+      posargs: -n auto
+      envs: |
+        - macos: py313
+        - windows: py313
+
   devdeps:
     # glue and glue-qt from their main branches and the nightly wheels of numpy and astropy, weekly and on a manual
     # run: no job needs it, so a change upstream shows here without holding up a pull request or a release
