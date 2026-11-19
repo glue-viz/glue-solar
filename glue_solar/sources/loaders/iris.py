@@ -1144,37 +1144,41 @@ def link_hpc(data_collection, others=()):
 class _Relinker(HubListener):
     """
     Link the IRIS datasets of a collection again, once, after datasets are removed from it, and the other datasets
-    `keep_hpc_linked` was asked to link or found linked, ``others``.
+    linked on request as each was removed (`_linked_to_iris`).
     """
 
     def __init__(self, data_collection):
         self.data_collection = data_collection
-        self.others = WeakSet()
+        self._linked = WeakSet()
         # one relink after a burst of removals, such as clearing the collection
         self._timer = QTimer()
         self._timer.setSingleShot(True)
         self._timer.setInterval(0)
         self._timer.timeout.connect(self._relink)
-        data_collection.hub.subscribe(self, DataCollectionDeleteMessage, handler=self._removed)
+        # ahead of glue's link manager, of priority 10, which drops the links
+        data_collection.hub.subscribe(self, DataCollectionDeleteMessage, handler=self._removed, priority=11)
 
     def _removed(self, message):
+        self._linked.update(_linked_to_iris(self.data_collection, message.data))
         self._timer.start()
 
     def _relink(self):
-        keep_hpc_linked(self.data_collection)
+        keep_hpc_linked(self.data_collection, self._linked)
+        self._linked.clear()
 
 
-def _linked_to_iris(data_collection):
+def _linked_to_iris(data_collection, removed=None):
     """
     The datasets of ``data_collection`` other than IRIS data, AIA cutouts and SOT cubes among them, whose
     helioprojective longitude or latitude a link pairs with the first IRIS dataset's, as `link_hpc` links them on
     request; not one linked by hand, in glue's Link Data dialog, to another IRIS dataset. With no IRIS data, those a
-    link pairs with another such dataset's (D97).
+    link pairs with another such dataset's (D97). ``removed`` is the dataset glue has just taken out of the collection
+    and whose links it is yet to drop, counted as its first.
     """
     from glue_solar.quicklook import _role  # which imports this module
 
     anchors, others = {}, {}
-    for data in data_collection:
+    for data in data_collection if removed is None else (removed, *data_collection):
         physical_types = getattr(data.coords, "world_axis_physical_types", None) or ()
         for physical_type, cid in zip(physical_types[::-1], data.world_component_ids):
             if physical_type and physical_type.startswith("custom:pos.helioprojective."):
@@ -1193,26 +1197,23 @@ def _linked_to_iris(data_collection):
 
 
 def _relinker(data_collection):
-    """
-    The `_Relinker` of ``data_collection``, made on first use, which also links again the datasets already linked to
-    the first IRIS dataset, or with none to each other (`_linked_to_iris`): a session keeps their links, not that they
-    were asked for.
-    """
+    """The `_Relinker` of ``data_collection``, made on first use."""
     if not hasattr(data_collection, "_solar_relinker"):
         data_collection._solar_relinker = _Relinker(data_collection)  # the hub holds its listeners weakly
-    data_collection._solar_relinker.others.update(_linked_to_iris(data_collection))
     return data_collection._solar_relinker
 
 
 def keep_hpc_linked(data_collection, others=()):
     """
-    Add the `link_hpc` links of the IRIS datasets and of ``others``, and again once a dataset is removed, which drops
-    the links through it (`_relinker`). Other data are linked only on request ('Link helioprojective coordinates'):
-    every quicklook panel and profile then inverts their WCS, and beside a linked SST cube a quicklook
-    took about 4 minutes to open, not 6 s. Datasets loaded later need another call.
+    Add the `link_hpc` links of the IRIS datasets, of ``others`` and of the datasets linked on request before, and
+    again once a dataset is removed, which drops the links through it (`_relinker`). Other data are linked only on
+    request ('Link helioprojective coordinates'): every quicklook panel and profile then inverts their WCS, and beside
+    a linked SST cube a quicklook took about 4 minutes to open, not 6 s. Which datasets those are is read from the
+    links there are (`_linked_to_iris`), all a session keeps of a request, so that one whose links are removed by hand
+    stays unlinked. Datasets loaded later need another call.
     """
-    requested = _relinker(data_collection).others
-    requested.update(others)
+    _relinker(data_collection)
+    requested = {*_linked_to_iris(data_collection), *others}
     # and data made from them (`_GlueWCS.follows`), such as a rebinned AIA cutout, linked as its source is (D101)
     uuids = {data.uuid for data in requested}
     requested.update(data for data in data_collection if uuids.intersection(getattr(data.coords, "follows", ())))
@@ -1231,7 +1232,8 @@ class _LinkedCollection:
     @staticmethod
     def __setgluestate__(rec, context):
         collection = context.dispatch.get_version(DataCollection, rec.get("_protocol", 1))(rec, context)
-        for data in _relinker(collection).others:  # glue restores a plain WCS: lock it as `link_hpc` did
+        _relinker(collection)
+        for data in _linked_to_iris(collection):  # glue restores a plain WCS: lock it as `link_hpc` did
             if type(data.coords) is WCS:
                 data.coords.__class__ = _LockedWCS
         return collection
