@@ -16,7 +16,7 @@ from scipy.interpolate import make_interp_spline
 
 from astropy.io import fits
 
-from glue_solar import regrid
+from glue_solar import describe, regrid
 from glue_solar.conftest import (
     OBS_A,
     SCAN,
@@ -27,7 +27,7 @@ from glue_solar.conftest import (
     int16_raster_copy,
     startobs,
 )
-from glue_solar.quicklook import nearest, quicklook
+from glue_solar.quicklook import quicklook
 from glue_solar.regrid import north_up, north_up_iris, rebin, regrid_on_time
 from glue_solar.sources.bursts import si_iv_bursts, sji_bursts
 from glue_solar.sources.loaders import iris
@@ -192,7 +192,7 @@ def test_a_regridded_stack_links_each_slit_jaw_frame_to_its_nearest_scan(tmp_pat
     assert list(check_regrid(stack, regridded)) == [2]
     collection = DataCollection([sji, regridded])
     collection.add_link(link_hpc(collection))
-    expected = nearest(frames, regridded[regridded.id["Time"]][:, middle, 0, 0])[0]
+    expected = describe.nearest(frames, regridded[regridded.id["Time"]][:, middle, 0, 0])[0]
     assert set(expected) == {0, 1, 3, 4}
     np.testing.assert_allclose(sji[regridded.pixel_component_ids[0]][:, 0, 0], expected, atol=1e-9)
 

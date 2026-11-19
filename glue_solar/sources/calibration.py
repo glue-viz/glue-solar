@@ -12,8 +12,8 @@ import astropy.units as u
 from astropy.wcs import WCS
 from astropy.wcs.wcsapi.wrappers import SlicedLowLevelWCS
 
+from glue_solar import describe
 from glue_solar.glue_patches import layer_action
-from glue_solar.quicklook import _role
 from glue_solar.sources.loaders.iris import (
     WCS_LOCK,
     _add_exposure,
@@ -43,7 +43,7 @@ def _check_sji(data):
     from gwcs import WCS as GWCS
 
     # exposure times, which every slit-jaw image has, not its bursts' labels, which keep its meta and coordinates
-    if _role(data) != "sji" or data.ndim != 3 or data.find_component_id("Exposure time") is None:
+    if describe.role(data) != "sji" or data.ndim != 3 or data.find_component_id("Exposure time") is None:
         raise ValueError(f"{data.label} is not an IRIS slit-jaw image.")
     if data.meta.get("dust_removed"):
         raise ValueError(f"{data.label} has its dust removed already.")

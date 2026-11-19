@@ -16,8 +16,8 @@ from qtpy import QtWidgets
 import astropy.units as u
 from astropy import constants
 
+from glue_solar import describe
 from glue_solar.conftest import SCAN, find_irispy_test_file, int16_copy
-from glue_solar.quicklook import _wavelengths
 from glue_solar.sources import mg_features
 from glue_solar.sources.loaders import iris
 from glue_solar.sources.loaders.iris import image_data, keep_hpc_linked, link_hpc, raster_data
@@ -177,7 +177,7 @@ def test_a_rest_wavelength_set_shifts_the_wavelengths_irispy_is_given(app, qtbot
     # over a pixel, 0.3 Å, in slabs of 3 steps: what irispy finds on the whole window shifted so, its crop shifted too
     monkeypatch.setattr("glue_solar.sources.moments.SLAB", 3 * 109 * 33)
     raster.meta["rest_wavelength"] = rest["k"] + 0.3
-    wavelengths, _ = _wavelengths(raster)
+    wavelengths, _ = describe.wavelengths(raster)
     shift = -(raster.meta["rest_wavelength"] - rest["k"]) * (wavelengths.size - 1) / (wavelengths[-1] - wavelengths[0])
     cube = dn_per_second_cube(raster, DN_UNIT["NUV"])
     cube = SpectrogramCube(cube.data, ResampledLowLevelWCS(cube.wcs, 1, (shift, 0, 0)), unit=cube.unit, mask=cube.mask)

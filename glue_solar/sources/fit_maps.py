@@ -17,9 +17,9 @@ from qtpy import QtCore, QtWidgets
 import astropy.units as u
 from astropy import constants
 
+from glue_solar import describe
 from glue_solar.glue_patches import _application
 from glue_solar.lines import DopplerConverter, rest_wavelength
-from glue_solar.quicklook import _wavelengths
 from glue_solar.sources.loaders.iris import _RUNNING
 from glue_solar.sources.moments import _check, _cube, _dataset, _read, _slab_rows, _start, _unit, _window
 
@@ -172,7 +172,7 @@ def _fit_maps(data, model, crop, unit, per_second, rest, progress):
 
     from glue_solar.fitters import _jacobian
 
-    wavelengths = _wavelengths(data)[0][crop]
+    wavelengths = describe.wavelengths(data)[0][crop]
     # processes, as the fits on threads hold the GIL, slower than on one; one pool a run, as one takes 1.4 s to start;
     # a chunk a task, as dask's default of six a task leaves all but a sixth of a call's chunks' processes idle
     pool = ProcessPoolExecutor(mp_context=dask.multiprocessing.get_context())

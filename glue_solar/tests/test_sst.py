@@ -35,18 +35,9 @@ from astropy.stats import mad_std
 from astropy.wcs import WCS
 
 import glue_solar
-from glue_solar import glue_patches
+from glue_solar import describe, glue_patches
 from glue_solar.lines import rest_wavelength
-from glue_solar.quicklook import (
-    QuicklookImageViewer,
-    _role,
-    _timed,
-    _times,
-    coordinator,
-    nearest,
-    observation_key,
-    quicklook,
-)
+from glue_solar.quicklook import QuicklookImageViewer, coordinator, quicklook
 from glue_solar.sources.iris import iris_quicklook, link_iris, quicklook_cube
 from glue_solar.sources.loaders.iris import WCS_LOCK, _LockedWCS, keep_hpc_linked, link_hpc
 from glue_solar.sources.loaders.scan import scan_directory
@@ -199,8 +190,8 @@ def test_file_open_gives_the_cube_alone_memory_mapped(tmp_path):
     assert stokes.shape == (3, 4, 5, 12, 16)
     assert stokes.meta["VAR-EXT"]["DATE-AVG"].shape == (3, 1, 5, 1, 1)
     assert data.meta["SPECSYS"] == "TOPOCENT"  # SST2: astropy needs one beside OBSGEO
-    assert _role(data) == "sst"
-    assert _timed(data)  # in the time sync of the SST cubes whose scans lie within a cadence of its own (230-9)
+    assert describe.role(data) == "sst"
+    assert describe.timed(data)  # in the time sync of the SST cubes whose scans lie within a cadence of its own (230-9)
 
 
 def test_time_and_wavelengths_are_the_table_s_at_every_pixel(tmp_path):
@@ -575,7 +566,7 @@ def test_once_linked_an_sst_region_or_point_selects_the_iris_pixels_at_its_place
     # D67: glue gave the cube's wavelength and time their CRVAL, 0, outside its table, which selected nothing; a mosaic's
     # pointing changes with each scan, so each SJI frame and raster exposure takes the scan nearest it
     sji, raster = sns
-    frames = _times(sji, 0)
+    frames = describe.times(sji, 0)
     start, cadence = (frames[10] - np.datetime64(DATEREF)), (frames[-1] - frames[10]) / 3  # from the 11th frame
     shape, scale, roll = (4, stokes, 5, 30, 40), 1.1, 8.0
     seconds = [time / np.timedelta64(1, "s") for time in (start, cadence)]
@@ -602,7 +593,7 @@ def test_once_linked_an_sst_region_or_point_selects_the_iris_pixels_at_its_place
             x, y = _sst_pixels(coord, lon, lat, when, shape, scale, roll)
             return (abs(x - xc) < half_width + margin) & (abs(y - yc) < half_height + margin)
 
-        when = _times(data, 0)[index[0]]
+        when = describe.times(data, 0)[index[0]]
         expected, edge = inside(when), inside(when, 0.01) != inside(when, -0.01)
         assert expected.sum() >= 50
         assert edge.sum() <= expected.sum() // 20
@@ -622,7 +613,7 @@ def test_once_linked_an_sst_region_or_point_selects_the_iris_pixels_at_its_place
             None,
         ]
         when = np.datetime64(DATEREF) + np.timedelta64(int(coord[scan, 2, 0, 0, 3] * 1e9), "ns")
-        [frame], _ = nearest([when], frames)
+        [frame], _ = describe.nearest([when], frames)
         x, y, _ = sji.coords.world_to_pixel_values(lon, lat, sji.coords.pixel_to_world_values(0, 0, frame)[2])
         assert point._to_linked_pixel_coords(sji) == [frame, round(float(y)), round(float(x))]
 
@@ -1160,15 +1151,17 @@ def test_two_sst_quicklooks_keep_one_time(sst_app, qtbot, tmp_path):
     qtbot.wait(20)
     c = quicklook(sst_app, [later])
     day = np.datetime64(DATEREF, "ns")
-    assert observation_key(first) == observation_key(second) == ("SST", day + np.timedelta64(1170, "s"))
-    assert observation_key(later) == ("SST", day + np.timedelta64(5000, "s"))
+    assert (
+        describe.observation_key(first) == describe.observation_key(second) == ("SST", day + np.timedelta64(1170, "s"))
+    )
+    assert describe.observation_key(later) == ("SST", day + np.timedelta64(5000, "s"))
     # shown, the later cube leads its own time only, and the first two keep theirs
     coord = coordinator(sst_app.data_collection)
     slide(c["map"], 0, 2)
-    assert [coord._master(observation_key(data)) for data in (first, second, later)] == [first, first, later]
+    assert [coord._master(describe.observation_key(data)) for data in (first, second, later)] == [first, first, later]
     show_tab(sst_app, qtbot, 2)  # after the later cube's tab too: at the time the first left, 1370.25 s
     assert (shown_scan(a), shown_scan(b), shown_scan(c)) == (3, 4, 2)
-    assert [coord._master(observation_key(data)) for data in (first, second, later)] == [second, second, later]
+    assert [coord._master(describe.observation_key(data)) for data in (first, second, later)] == [second, second, later]
 
 
 def test_sst_cubes_link_without_iris_data_and_link_their_points(sst_app, qtbot, tmp_path):
@@ -1228,7 +1221,7 @@ def test_a_region_on_an_sst_cube_selects_its_place_on_another_linked_without_iri
         mask = data.get_mask(RoiSubsetState(xatt=pixel[-1], yatt=pixel[-2], roi=roi))
         scan, k, y, x = np.indices(data.shape)
         lon, lat, *_ = data.coords.pixel_to_world_values(x, y, k, scan)
-        x, y = _sst_pixels(coords[name], lon, lat, _times(data, None)[scan], shapes[name], scales[name], 0.0)
+        x, y = _sst_pixels(coords[name], lon, lat, describe.times(data, None)[scan], shapes[name], scales[name], 0.0)
         (xc, yc), half_width, half_height = roi.center(), roi.width() / 2, roi.height() / 2
 
         def inside(margin):
@@ -1346,31 +1339,37 @@ def test_sst_time_keys_follow_overlapping_scans(qtbot, tmp_path):
     coord.set_master(a)
     day = np.datetime64(DATEREF, "ns")
     collection.append(b)
-    assert observation_key(a) == ("SST", day + np.timedelta64(1170, "s"))
-    assert coord.masters.get(observation_key(a)) is a
+    assert describe.observation_key(a) == ("SST", day + np.timedelta64(1170, "s"))
+    assert coord.masters.get(describe.observation_key(a)) is a
     collection.extend([d, e, f])
     # 39.5 s after b and 100 s after d, each within the larger cadence only; 150 s after e, within neither
-    assert observation_key(d) == observation_key(e) == observation_key(b)
-    assert observation_key(f) == ("SST", day + np.timedelta64(1872, "s"))
+    assert describe.observation_key(d) == describe.observation_key(e) == describe.observation_key(b)
+    assert describe.observation_key(f) == ("SST", day + np.timedelta64(1872, "s"))
     collection.remove(b)  # d is 119 s after a
-    assert observation_key(a) == ("SST", day + np.timedelta64(1200, "s")) != observation_key(d)
-    assert observation_key(e) == ("SST", day + np.timedelta64(1440, "s"))
-    assert coord.masters.get(observation_key(a)) is a
+    assert describe.observation_key(a) == ("SST", day + np.timedelta64(1200, "s")) != describe.observation_key(d)
+    assert describe.observation_key(e) == ("SST", day + np.timedelta64(1440, "s"))
+    assert coord.masters.get(describe.observation_key(a)) is a
     collection.append(g)  # 129 s after a, within its own cadence, and overlapping d and e: one group again
-    assert observation_key(a) == observation_key(d) == observation_key(e) == observation_key(g) != observation_key(f)
+    assert (
+        describe.observation_key(a)
+        == describe.observation_key(d)
+        == describe.observation_key(e)
+        == describe.observation_key(g)
+        != describe.observation_key(f)
+    )
 
 
 def test_once_linked_an_sst_quicklook_shares_the_iris_time(sst_app, qtbot, tmp_path, sns):
     # D64, D68: an SST cube joins the time sync of the IRIS observation it is linked to, on request only, each scan timed
     # at its line core (227-4), here its second tuning; and only then behind the WCS lock (227-9)
     sji, raster = sns
-    frames = _times(sji, 0)
+    frames = describe.times(sji, 0)
     start, cadence = (frames[10] - np.datetime64(DATEREF)), (frames[-1] - frames[10]) / 3
     seconds = [time / np.timedelta64(1, "s") for time in (start, cadence)]
     write_sst_cube(tmp_path / "cube.fits", (4, 1, 5, 30, 40), (-55.0, -400.0), (4.0, -3.0), 1.1, 8.0, *seconds, core=1)
     cube = sst_data(tmp_path / "cube.fits")
     scans = cube["Time"][:, 1, 0, 0]
-    np.testing.assert_array_equal(_times(cube, None), scans)
+    np.testing.assert_array_equal(describe.times(cube, None), scans)
     iris = quicklook(sst_app, [raster, sji])
     sst = quicklook(sst_app, [cube])
     coord = coordinator(sst_app.data_collection)
@@ -1379,22 +1378,22 @@ def test_once_linked_an_sst_quicklook_shares_the_iris_time(sst_app, qtbot, tmp_p
     exposure = iris["spectrogram"].state.slices[0]  # a sit-and-stare's map is slit against time
     show_tab(sst_app, qtbot, 2)
     assert shown_scan(sst) == 3
-    assert observation_key(cube) == ("SST", cube["Time"].min())  # its own, the only cube
+    assert describe.observation_key(cube) == ("SST", cube["Time"].min())  # its own, the only cube
     assert not isinstance(cube.coords, _LockedWCS)
     link_iris(sst_app.session, sst_app.data_collection)  # 'Link helioprojective coordinates'
     assert isinstance(cube.coords, _LockedWCS)
-    key = observation_key(raster)
-    assert observation_key(cube) == key
+    key = describe.observation_key(raster)
+    assert describe.observation_key(cube) == key
     assert cube.meta["IRIS observation"] == [key[0], str(key[1])]
     # shown, the IRIS quicklook takes the time from the cube's scan, and the cube then from its exposure
-    times = _times(raster, None)
+    times = describe.times(raster, None)
     show_tab(sst_app, qtbot, 1)
-    [nearest_exposure], _ = nearest([scans[3]], times)
+    [nearest_exposure], _ = describe.nearest([scans[3]], times)
     assert iris["spectrogram"].state.slices[0] == nearest_exposure != exposure
     coord.move_master(raster, 5)
     qtbot.wait(20)
     show_tab(sst_app, qtbot, 2)
-    [scan], [offset] = nearest([times[5]], scans)
+    [scan], [offset] = describe.nearest([times[5]], scans)
     assert shown_scan(sst) == scan
     assert abs(offset) <= cadence / 2
     assert leads() in sst["map"].toolbar.tools["solar:frame_time"].label.text()
@@ -1403,7 +1402,7 @@ def test_once_linked_an_sst_quicklook_shares_the_iris_time(sst_app, qtbot, tmp_p
 def test_a_cube_leads_the_time_from_its_hidden_tab(sst_app, qtbot, tmp_path, sns):
     # D38, D39: chosen to lead the time, a cube whose tab was hidden was taken at scan 0, and D and F moved nothing
     sji, raster = sns
-    frames = _times(sji, 0)
+    frames = describe.times(sji, 0)
     start, cadence = (frames[10] - np.datetime64(DATEREF)), (frames[-1] - frames[10]) / 3
     seconds = [time / np.timedelta64(1, "s") for time in (start, cadence)]
     write_sst_cube(tmp_path / "cube.fits", (4, 1, 5, 30, 40), (-55.0, -400.0), (4.0, -3.0), 1.1, 8.0, *seconds)
@@ -1414,10 +1413,10 @@ def test_a_cube_leads_the_time_from_its_hidden_tab(sst_app, qtbot, tmp_path, sns
     menu_action(sst["map"], "Lead the time").trigger()
     slide(sst["map"], 0, 3)
     qtbot.wait(20)
-    times, scans = _times(raster, None), _times(cube, None)
+    times, scans = describe.times(raster, None), describe.times(cube, None)
 
     def exposure(scan):
-        return nearest([scans[scan]], times)[0][0]
+        return describe.nearest([scans[scan]], times)[0][0]
 
     show_tab(sst_app, qtbot, 1)
     assert iris["spectrogram"].state.slices[0] == exposure(3)
@@ -1431,7 +1430,7 @@ def test_a_cube_leads_the_time_from_its_hidden_tab(sst_app, qtbot, tmp_path, sns
 def test_a_cube_shares_its_sst_cubes_time_again_once_the_iris_data_go(sst_app, qtbot, tmp_path, sns):
     # D73: a cube kept the key of the IRIS data it was linked to once they were removed, out of its cubes' time sync
     sji, raster = sns
-    frames = _times(sji, 0)
+    frames = describe.times(sji, 0)
     start, cadence = (frames[10] - np.datetime64(DATEREF)), (frames[-1] - frames[10]) / 3
     seconds = [time / np.timedelta64(1, "s") for time in (start, cadence)]
     for name in ("linked", "other"):
@@ -1439,12 +1438,12 @@ def test_a_cube_shares_its_sst_cubes_time_again_once_the_iris_data_go(sst_app, q
     linked, other = sst_data(tmp_path / "linked.fits"), sst_data(tmp_path / "other.fits")
     sst_app.data_collection.extend([sji, raster, linked])
     link_iris(sst_app.session, sst_app.data_collection)  # 'Link helioprojective coordinates'
-    assert observation_key(linked) == observation_key(raster)
+    assert describe.observation_key(linked) == describe.observation_key(raster)
     sst_app.data_collection.remove(sji)
     sst_app.data_collection.remove(raster)
     qtbot.waitUntil(lambda: "IRIS observation" not in linked.meta)  # as the links are made again
     quicklook(sst_app, [other])
-    assert observation_key(linked) == observation_key(other) == ("SST", other["Time"].min())
+    assert describe.observation_key(linked) == describe.observation_key(other) == ("SST", other["Time"].min())
 
 
 @pytest.mark.parametrize("stokes", [4, 1])

@@ -27,9 +27,9 @@ from astropy.wcs import WCS
 from astropy.wcs.wcsapi import HighLevelWCSWrapper
 from astropy.wcs.wcsapi.wrappers import SlicedLowLevelWCS
 
+from glue_solar import describe
 from glue_solar.conftest import SCAN, find_irispy_test_file, int16_copy, int16_raster_copy
 from glue_solar.lines import rest_wavelength
-from glue_solar.quicklook import _wavelengths
 from glue_solar.sources import moments
 from glue_solar.sources.doppler import doppler_image
 from glue_solar.sources.loaders import iris
@@ -72,7 +72,7 @@ def ends(center, low=-107, high=107):
 
 def missing(raster, low, high):
     """Where every sample of ``raster`` from ``low`` to ``high`` Angstrom is missing."""
-    wavelengths, _ = _wavelengths(raster)
+    wavelengths, _ = describe.wavelengths(raster)
     return np.isnan(raster[raster.main_components[0]][..., (wavelengths >= low) & (wavelengths <= high)]).all(-1)
 
 
@@ -209,7 +209,7 @@ def test_a_stacks_saturated_pixels_are_counted_over_its_scans(app, qtbot, monkey
     monkeypatch.setattr(iris, "LAZY", False)
     [stack] = raster_data(stack_paths, ["Si IV 1403"], stack=True)
     app.data_collection.append(stack)
-    cid, (wavelengths, _) = stack.main_components[0], _wavelengths(stack)
+    cid, (wavelengths, _) = stack.main_components[0], describe.wavelengths(stack)
     low, high = ends(1402.77)
     inside = np.flatnonzero((wavelengths >= low) & (wavelengths <= high))
     values = np.array(stack[cid])
@@ -282,7 +282,7 @@ def test_a_profile_range_gives_the_velocity_range_from_a_center_within_it(app, q
     tools.rng_mode.state.x_min, tools.rng_mode.state.x_max = 139, 141
     answer_showing()
     maps = run(app, qtbot, raster)
-    wavelengths, _ = _wavelengths(raster)
+    wavelengths, _ = describe.wavelengths(raster)
     assert shown == [f"1390.000 to 1410.000 Å, cut to the window: {wavelengths[0]:.3f} to {wavelengths[-1]:.3f} Å"]
     assert_cut(maps, raster, 1402.77, -1e4)
     tools.rng_mode.state.x_min, tools.rng_mode.state.x_max = 141.1, 141.5  # beyond it: the velocities as they were
@@ -299,7 +299,7 @@ def assert_beyond(raster, center, low, high):
     Assert that ``low`` and ``high``, in km / s from ``center``, lie beyond the first and last wavelengths of ``raster``
     by less than a thousandth of a km / s; a ``low`` of None is not checked.
     """
-    wavelengths, _ = _wavelengths(raster)
+    wavelengths, _ = describe.wavelengths(raster)
     if low is not None:
         inner, outer = ends(center, low + 1e-3, low)
         assert outer <= wavelengths[0] < inner
@@ -412,7 +412,7 @@ def test_a_continuum_window_is_irispys_background(app, qtbot, monkeypatch, scan_
     app.data_collection.append(raster)
     plain = line_moments(raster, 1402.77)
     cube = dn_per_second_cube(raster, DN_UNIT["FUV"])
-    wavelengths, _ = _wavelengths(raster)
+    wavelengths, _ = describe.wavelengths(raster)
     low, high = ends(1402.77)
     inside = (wavelengths >= low) & (wavelengths <= high)
     # the second fits no background to 8 pixels missing from 1403.46 Å on but not within the velocity range
@@ -545,7 +545,7 @@ def test_minus_infinity_is_missing(monkeypatch, scan_path):
     """A sample at -Inf, which only data stored as floating point can hold, is missing, as NaN is."""
     monkeypatch.setattr(iris, "LAZY", False)
     [raster] = raster_data([scan_path], ["Si IV 1403"])
-    cid, (wavelengths, _) = raster.main_components[0], _wavelengths(raster)
+    cid, (wavelengths, _) = raster.main_components[0], describe.wavelengths(raster)
     low, high = ends(1402.77)
     inside = np.flatnonzero((wavelengths >= low) & (wavelengths <= high))
     assert np.isfinite(line_moments(raster, 1402.77)["intensity"][2:4, 10]).all()
@@ -572,7 +572,7 @@ def test_saturated_pixels_within_the_velocity_range_are_nan_and_counted(app, qtb
     """
     monkeypatch.setattr(moments, "SLAB", 3 * 109 * 4)  # slabs of 3 steps, or of 1 with a continuum
     [raster] = raster_data([scan_path], ["Si IV 1403"])
-    cid, (wavelengths, _) = raster.main_components[0], _wavelengths(raster)
+    cid, (wavelengths, _) = raster.main_components[0], describe.wavelengths(raster)
     low, high = ends(1402.77)
     inside = np.flatnonzero((wavelengths >= low) & (wavelengths <= high))
     outside = np.flatnonzero((wavelengths >= 1403.5) & (wavelengths <= 1404))

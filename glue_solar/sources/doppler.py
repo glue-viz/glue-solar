@@ -8,7 +8,7 @@ from glue.core.component import Component
 
 import astropy.units as u
 
-from glue_solar.quicklook import _wavelengths
+from glue_solar import describe
 from glue_solar.sources.moments import _check, _dataset, _read, _unit
 
 __all__ = ["doppler_image"]
@@ -28,7 +28,7 @@ def _wings(data, rest, velocities):
         raise ValueError(f"The velocities must be positive, not {', '.join(f'{v:g}' for v in velocities)} km / s.")
     speeds = np.concatenate([velocities, np.negative(velocities)])
     targets = (speeds * u.km / u.s).to_value(u.AA, equivalencies=u.doppler_optical(rest * u.AA))
-    wavelengths, _ = _wavelengths(data)
+    wavelengths, _ = describe.wavelengths(data)
     below = np.clip(np.searchsorted(wavelengths, targets, side="right") - 1, 0, wavelengths.size - 2)
     weight = (targets - wavelengths[below]) / np.diff(wavelengths)[below]
     outside = (weight < 0) | (weight > 1)

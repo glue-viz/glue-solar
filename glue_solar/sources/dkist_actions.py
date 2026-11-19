@@ -19,8 +19,9 @@ from qtpy import QtCore, QtWidgets
 import astropy.units as u
 from astropy.coordinates import StokesCoord
 
+from glue_solar import describe
 from glue_solar.glue_patches import _application, layer_action
-from glue_solar.quicklook import PERCENTILE, coordinator, nearest
+from glue_solar.quicklook import PERCENTILE, coordinator
 from glue_solar.sources.dkist import (
     _ARRIVING,
     _frame_axis,
@@ -171,7 +172,7 @@ class _FrameCurves(QtCore.QObject):
         if index is None or rows is None:
             return
         self.viewer = viewer
-        [row], _ = nearest([viewer.state.reference_data._frames[0][index]], self.times)
+        [row], _ = describe.nearest([viewer.state.reference_data._frames[0][index]], self.times)
         self.line.set_xdata([rows[row]] * 2)
         self.line.set_visible(True)
         self.profile.figure.canvas.draw_idle()
@@ -223,7 +224,7 @@ class _FrameCurves(QtCore.QObject):
             times = data._frames[0]
             axes = sorted(_time_axes(data) & set(range(times.ndim)))  # its frame axes of time, not of Stokes
             along = times[tuple(slice(None) if axis in axes else at for axis, at in enumerate(index))]
-            [frame], _ = nearest([when], along.ravel())
+            [frame], _ = describe.nearest([when], along.ravel())
             slices = list(viewer.state.slices)
             for axis, at in zip(axes, np.unravel_index(frame, along.shape)):
                 slices[axis] = int(at)

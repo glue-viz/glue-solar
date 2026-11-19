@@ -10,8 +10,8 @@ from qtpy import QtWidgets
 
 import astropy.units as u
 
+from glue_solar import describe
 from glue_solar.glue_patches import layer_action
-from glue_solar.quicklook import _wavelengths
 from glue_solar.sources.moments import _accepted, _check, _cube, _dataset, _form, _slabs, _start, _unit
 
 __all__ = ["mg_features", "mg_features_iris"]
@@ -50,7 +50,7 @@ def _crop(data, velocities, lines, rest=None):
     low, high = velocities
     if not low < high:
         raise ValueError(f"The velocities, from {low} to {high} km / s, do not increase.")
-    wavelengths, _ = _wavelengths(data)
+    wavelengths, _ = describe.wavelengths(data)
     # each shorter by rest less irispy's k, as irispy advises for IDL's wave_comp: k is then measured from rest, h from
     # irispy's h as far off
     offset = 0.0 if rest is None else rest - _REST_WAVELENGTH["k"].to_value(u.AA)

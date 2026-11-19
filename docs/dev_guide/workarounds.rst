@@ -179,7 +179,7 @@ glue-core
   back to a quicklook's Profile panel, and any cube of ``large_data_size`` values or more not from the IRIS reader, with
   its data layer hidden, a status-bar note and the range fitted once to the first computed
   subset profile (``hidden_cube_profile``, ``_FitOnceComputed``, #95, #233, S13, SST4). Switch: the viewer's
-  ``large_data_size`` and the data's ``_role``; the quicklook's ``_solar_hidden``. Retired by glue's
+  ``large_data_size`` and the data's ``describe.role``; the quicklook's ``_solar_hidden``. Retired by glue's
   ``_reset_y_limits`` using cached profiles only (R14) and ``compute_statistic`` without the float64 copy (R21), or
   glue-qt adding large data hidden (upstream list).
 - **A quicklook spectrum or curve panel's profile limits set on the GUI thread after each move of its subset**, so

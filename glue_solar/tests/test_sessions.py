@@ -40,9 +40,9 @@ import sunpy.data.test
 from sunpy.visualization.colormaps import cmlist
 
 import glue_solar
-from glue_solar import glue_patches
+from glue_solar import describe, glue_patches
 from glue_solar.conftest import MD5, OBS_A, SCAN, find_irispy_test_file
-from glue_solar.quicklook import MARK, _off, _PointWindow, _role, _viewers, coordinator, quicklook
+from glue_solar.quicklook import MARK, _off, _PointWindow, _viewers, coordinator, quicklook
 from glue_solar.regrid import north_up, rebin, regrid_on_time
 from glue_solar.sources.bursts import si_iv_bursts, sji_bursts
 from glue_solar.sources.calibration import radiometric_calibration, remove_dust
@@ -361,7 +361,7 @@ def test_an_aia_map_session_restores_its_colormap_and_measure_s_km(app, qtbot, m
     # its colors: glue's menu shows the first sunpy colormap of the same colors, here GOES-R SUVI 171's
     assert restored.viewers[0][0].layers[0].state.cmap == cmlist["sdoaia171"]
     # its role and km, from its INSTRUME and DSUN_OBS: the reader stores sunpy's keys upper-case, and a session keeps them
-    assert _role(restored.data_collection[0]) == "aia"
+    assert describe.role(restored.data_collection[0]) == "aia"
     lengths = []
     for viewer in (app.viewers[0][0], restored.viewers[0][0]):
         viewer.toolbar.active_tool = "solar:measure"

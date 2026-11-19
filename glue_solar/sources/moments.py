@@ -24,9 +24,10 @@ from astropy import constants
 from astropy.nddata import StdDevUncertainty
 from astropy.wcs.wcsapi.wrappers import SlicedLowLevelWCS
 
+from glue_solar import describe
 from glue_solar.glue_patches import _application, layer_action, refresh_layer_actions
 from glue_solar.lines import _wavelength, main_lines, rest_wavelength
-from glue_solar.quicklook import _role, _show, _spectral_axes, _wavelengths, coordinator
+from glue_solar.quicklook import _show, coordinator
 from glue_solar.sources.loaders.iris import (
     _AXIS_NAMES,
     _HPC,
@@ -55,7 +56,7 @@ def _check(data):
     Raise why ``data`` is not an IRIS raster window of one scan, (raster step, slit, wavelength), or a stack of its
     scans, (scan, raster step, slit, wavelength).
     """
-    if _role(data) != "raster" or data.ndim not in (3, 4) or _spectral_axes(data) != {data.ndim - 1}:
+    if describe.role(data) != "raster" or data.ndim not in (3, 4) or describe.spectral_axes(data) != {data.ndim - 1}:
         raise ValueError(f"{data.label} is not an IRIS raster window.")
 
 
@@ -79,7 +80,7 @@ def _window(data, ends, lines, continuum=None):
     (`_read`); raises why for data that has none within ``ends``, or a continuum window that overlaps them or has none.
     """
     _check(data)
-    wavelengths, _ = _wavelengths(data)
+    wavelengths, _ = describe.wavelengths(data)
     span = f"{data.label} ({wavelengths[0]:.2f} to {wavelengths[-1]:.2f} Å)"
 
     def within(low, high):
@@ -354,7 +355,7 @@ def _ask(data, drawn=None):
     form.addRow("Rest wavelength [Å]:", center)
     moments = QtWidgets.QCheckBox("Line moments", objectName="moments", checked=True)
     form.addRow(moments)
-    wavelengths, _ = _wavelengths(data)
+    wavelengths, _ = describe.wavelengths(data)
     first, last, c = wavelengths[0], wavelengths[-1], constants.c.to_value(u.km / u.s)
     boxes = []
     for name, value in zip(("from", "to"), VELOCITY_RANGE):
@@ -604,7 +605,7 @@ def _mean_spectrum(data, cid):
 
 def _check_mean(data):
     """Raise why ``data`` is not an IRIS raster window or stack whose mean spectrum can be subtracted."""
-    if _role(data) != "raster" or _spectral_axes(data) != {data.ndim - 1}:
+    if describe.role(data) != "raster" or describe.spectral_axes(data) != {data.ndim - 1}:
         raise ValueError(f"{data.label} is not an IRIS raster window.")
     if data.find_component_id(f"{data.main_components[0].label} minus mean spectrum") is not None:
         raise ValueError(f"{data.label} has its mean spectrum subtracted already.")

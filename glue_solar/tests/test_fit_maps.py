@@ -26,8 +26,8 @@ from astropy import constants
 from astropy.io import fits
 from astropy.modeling import models
 
+from glue_solar import describe
 from glue_solar.fitters import GaussianConstantFitter, _component
-from glue_solar.quicklook import _wavelengths
 from glue_solar.sources import fit_maps, moments
 from glue_solar.sources.loaders import iris
 from glue_solar.sources.loaders.iris import WCS_LOCK, keep_hpc_linked, link_hpc, raster_data
@@ -128,7 +128,7 @@ def test_each_viewer_fits_the_window_with_its_own_fit(app, qtbot, scan_path, cal
     fitted = fit(qtbot, first), fit(qtbot, second, narrow)
     for tools in (first, second):
         run(app, qtbot, tools)
-    wavelengths = _wavelengths(raster)[0]
+    wavelengths = describe.wavelengths(raster)[0]
     for call, model, (low, high) in zip(calls, fitted, (LINE, narrow), strict=True):
         np.testing.assert_array_equal(call["world"][0].value, wavelengths[(wavelengths >= low) & (wavelengths <= high)])
         np.testing.assert_array_equal(call["model"].stddev_1.value, model.stddev_1.value)  # the width kept
@@ -278,7 +278,7 @@ def test_saturated_samples_are_left_out_of_the_fits(app, qtbot, monkeypatch, sca
     keeps it in its Profile fit, which says so (D86, D87).
     """
     [raster] = raster_data([scan_path], ["Si IV 1403"])
-    peak = np.argmin(np.abs(_wavelengths(raster)[0] - 1402.77))
+    peak = np.argmin(np.abs(describe.wavelengths(raster)[0] - 1402.77))
     with fits.open(scan_path, mode="update", do_not_scale_image_data=True) as hdulist:  # Si IV 1403's raw int16
         hdulist[5].data[:, 10, peak] = 32760
     [raster] = raster_data([scan_path], ["Si IV 1403"])
@@ -297,7 +297,7 @@ def test_saturated_samples_are_left_out_of_the_fits(app, qtbot, monkeypatch, sca
     np.testing.assert_array_equal(model.parameters, fitted.parameters)  # in Angstrom already
     assert call["model"] is start
     [wavelengths] = call["world"]
-    [sample] = np.flatnonzero(wavelengths.value == _wavelengths(raster)[0][peak])
+    [sample] = np.flatnonzero(wavelengths.value == describe.wavelengths(raster)[0][peak])
     assert cube.mask[:, 10, sample].all()
     np.testing.assert_array_equal(call["data"], np.where(cube.mask, np.nan, cube.data))
 

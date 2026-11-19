@@ -743,13 +743,13 @@ def _irispy_meta(data, scan=()):
     """
     from irispy.meta import SGMeta
 
-    from glue_solar.quicklook import _window  # which imports this module
+    from glue_solar import describe  # which imports this module
 
     if isinstance(data.meta, SGMeta):
         return data.meta
     meta = dict(data.meta)
     meta["exposure time"] = data[data.id["Exposure time"], (*scan, slice(None), 0, 0)] * u.s
-    return SGMeta(meta, _window(data)[0], data_shape=data.shape[len(scan) :])
+    return SGMeta(meta, describe.window(data)[0], data_shape=data.shape[len(scan) :])
 
 
 def _logged(datasets, path, factory, **kwargs):
@@ -964,7 +964,7 @@ def link_hpc(data_collection, others=()):
     A DKIST dataset's time and the IRIS data's are linked at the nearest frames, and a DKIST raster's step and slit
     pixel to the IRIS data's longitude and latitude (`_SlitAt`).
     """
-    from glue_solar.quicklook import _role, _times, nearest, observation_key  # which imports this module
+    from glue_solar import describe  # which imports this module
     from glue_solar.sources.dkist import (  # which imports this module
         DKISTWCS,
         _frame_axis,
@@ -980,13 +980,13 @@ def link_hpc(data_collection, others=()):
     # read through irispy; an AIA cutout or SOT cube only beside a raster or slit-jaw image of its observation (D115),
     # one of another being linked on request as other data are (D72)
     read = [data for data in data_collection if isinstance(data.coords, _GlueWCS)]
-    iris = {data for data in read if _role(data) != "aia"}
-    keys = {observation_key(data) for data in iris if _role(data) in ("raster", "sji")} - {None}
-    iris |= {data for data in read if observation_key(data) in keys}
+    iris = {data for data in read if describe.role(data) != "aia"}
+    keys = {describe.observation_key(data) for data in iris if describe.role(data) in ("raster", "sji")} - {None}
+    iris |= {data for data in read if describe.observation_key(data) in keys}
     anchors, links, cubes, placed = {}, [], set(), set(iris)
     # IRIS datasets first, AIA cutouts and SOT cubes last of them, so that the first is the one every dataset links to,
     # whatever the load order
-    for data in sorted(data_collection, key=lambda data: (data not in iris, _role(data) == "aia")):
+    for data in sorted(data_collection, key=lambda data: (data not in iris, describe.role(data) == "aia")):
         asked = data in iris or data in others
         # glue's world components are in numpy order, the reverse of the WCS world axes
         physical_types = getattr(data.coords, "world_axis_physical_types", None) or ()
@@ -1002,7 +1002,7 @@ def link_hpc(data_collection, others=()):
                     same = isinstance(data.coords, _GlueWCS) and isinstance(anchor.parent.coords, _GlueWCS)
                     links.append((LinkSame if same else LinkSameWithUnits)(anchor, cid))
                 placed.add(data)
-                if _role(data) == "sst":
+                if describe.role(data) == "sst":
                     cubes.add(data)
                 # linked now or before, as a session restores it
                 # ponytail: only a plain astropy WCS, as glue's FITS reader and sunpy maps give, or an SST cube's, not
@@ -1019,36 +1019,37 @@ def link_hpc(data_collection, others=()):
     for stack, scan in scans.items():
         if stack.find_component_id("Time") is None:  # a stack's maps, such as its line moments
             continue
-        times = _times(stack, stack.shape[1] // 2)
+        times = describe.times(stack, stack.shape[1] // 2)
         # each scan pixel's Scan: its index (stack_wcs), but its source scan once regridded on time (_Regridded)
         values = stack[scan, (slice(None),) + (0,) * (stack.ndim - 1)]
         for data in datasets:
             frame = data.pixel_component_ids[0]
             if data in scans or frozenset((scan, frame)) in linked or data.find_component_id("Time") is None:
                 continue
-            when = _times(data, 0)
-            nearby = np.where(np.isnat(when), np.nan, values[nearest(when, times)[0]])  # none for a frame with no time
+            when = describe.times(data, 0)
+            # none for a frame with no time
+            nearby = np.where(np.isnat(when), np.nan, values[describe.nearest(when, times)[0]])
             links.append(ComponentLink([frame], scan, using=_ScanAt(nearby)))
     for data in data_collection:
-        if _role(data) == "sst":
+        if describe.role(data) == "sst":
             data.meta.pop("IRIS observation", None)  # set again below while linked
     for cube in cubes:
         seconds, scan = cube.world_component_ids[0], cube.pixel_component_ids[0]  # its time since DATEREF, and scan
-        scans = _times(cube, None)  # at its line core
+        scans = describe.times(cube, None)  # at its line core
         nearest_offset = None
         # another cube's scans give its time, which glue's x and y of it take, its pointing moving by scan (D97)
         for other in cubes - {cube}:
             if frozenset((seconds, other.pixel_component_ids[0])) not in linked:
-                when = (_times(other, None) - np.datetime64(cube.meta["DATEREF"])) / np.timedelta64(1, "s")
+                when = (describe.times(other, None) - np.datetime64(cube.meta["DATEREF"])) / np.timedelta64(1, "s")
                 links.append(ComponentLink([other.pixel_component_ids[0]], seconds, using=_ScanAt(when)))
         for data in datasets:
             frame = data.pixel_component_ids[0]
             if data.find_component_id("Time") is None:
                 continue
-            when = _times(data, data.shape[1] // 2 if data.ndim == 4 else 0)  # a stack's at its middle step
-            key = observation_key(data)
+            when = describe.times(data, data.shape[1] // 2 if data.ndim == 4 else 0)  # a stack's at its middle step
+            key = describe.observation_key(data)
             if key is not None and not np.isnat(when).all():
-                offset = abs(nearest([scans[len(scans) // 2]], when)[1][0])
+                offset = abs(describe.nearest([scans[len(scans) // 2]], when)[1][0])
                 if nearest_offset is None or offset < nearest_offset:
                     nearest_offset, cube.meta["IRIS observation"] = offset, [key[0], str(key[1])]
             if frozenset((seconds, frame)) not in linked:
@@ -1106,10 +1107,10 @@ def link_hpc(data_collection, others=()):
             frame = data.pixel_component_ids[0]
             if data.find_component_id("Time") is None:
                 continue
-            when = _times(data, data.shape[1] // 2 if data.ndim == 4 else 0)  # a stack's at its middle step
+            when = describe.times(data, data.shape[1] // 2 if data.ndim == 4 else 0)  # a stack's at its middle step
             if np.isnat(when).all():
                 continue
-            nearby = nearest(when, times.ravel())[0]
+            nearby = describe.nearest(when, times.ravel())[0]
             at = tuple(slice(None) if a in axes else n // 2 for a, n in enumerate(dataset.shape))
             for stamp in stamps:
                 if frozenset((stamp, frame)) not in linked:
@@ -1118,7 +1119,7 @@ def link_hpc(data_collection, others=()):
             kinds = list(data.coords.world_axis_physical_types)
             if raster is not None and timed and set(_HPC) <= set(kinds):
                 lonlat = [data.world_component_ids[data.ndim - 1 - kinds.index(kind)] for kind in _HPC]
-                steps = np.where(np.isnat(when), np.nan, nearest(when, times)[0])
+                steps = np.where(np.isnat(when), np.nan, describe.nearest(when, times)[0])
                 if frozenset((frames, frame)) not in linked:
                     links.append(ComponentLink([frame], frames, using=_ScanAt(steps)))
                 if frozenset((slit, *lonlat, frame)) not in linked:
@@ -1138,7 +1139,7 @@ def link_hpc(data_collection, others=()):
                 continue
             time = data.world_component_ids[data.ndim - 1 - kinds.index("time")]
             if frozenset((time, *time_ids)) not in linked:
-                values = data[time, (slice(None),) + (0,) * (data.ndim - 1)][nearest(times, when)[0]]
+                values = data[time, (slice(None),) + (0,) * (data.ndim - 1)][describe.nearest(times, when)[0]]
                 links.append(ComponentLink(time_ids, time, using=_ScanAt(values)))
     return links
 
@@ -1177,14 +1178,14 @@ def _linked_to_iris(data_collection, removed=None):
     link pairs with another such dataset's (D97). ``removed`` is the dataset glue has just taken out of the collection
     and whose links it is yet to drop, counted as its first.
     """
-    from glue_solar.quicklook import _role  # which imports this module
+    from glue_solar import describe  # which imports this module
 
     anchors, others = {}, {}
     for data in data_collection if removed is None else (removed, *data_collection):
         physical_types = getattr(data.coords, "world_axis_physical_types", None) or ()
         for physical_type, cid in zip(physical_types[::-1], data.world_component_ids):
             if physical_type and physical_type.startswith("custom:pos.helioprojective."):
-                if isinstance(data.coords, _GlueWCS) and _role(data) != "aia":
+                if isinstance(data.coords, _GlueWCS) and describe.role(data) != "aia":
                     anchors.setdefault(physical_type, cid)  # as `link_hpc` picks them
                 else:
                     others[cid] = data
@@ -1589,14 +1590,16 @@ class QtIRISImporter(QtWidgets.QDialog):
     def _list_main(self):
         """
         List the ticked raster windows in Main window, showing the one last chosen there while ticked, else
-        `DEFAULT_WINDOW`, else the first; shown only for two or more, where it is a choice (D90).
+        `describe.DEFAULT_WINDOW`, else the first; shown only for two or more, where it is a choice (D90).
         """
-        from glue_solar.quicklook import DEFAULT_WINDOW  # which imports this module
+        from glue_solar import describe  # which imports this module
 
         names = list(dict.fromkeys(self._payloads[j][2] for j in sorted(self._ticked)))
         self.main_window.clear()
         self.main_window.addItems(names)
-        self.main_window.setCurrentText(next((n for n in (self._main, DEFAULT_WINDOW, *names) if n in names), ""))
+        self.main_window.setCurrentText(
+            next((n for n in (self._main, describe.DEFAULT_WINDOW, *names) if n in names), "")
+        )
         for widget in (self.main_window_label, self.main_window):
             widget.setVisible(len(names) > 1)
 

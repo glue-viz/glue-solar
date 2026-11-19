@@ -12,8 +12,8 @@ from qtpy import QtWidgets
 import astropy.units as u
 from astropy.io import ascii
 
+from glue_solar import describe
 from glue_solar.glue_patches import layer_action
-from glue_solar.quicklook import _role
 from glue_solar.sources.loaders.iris import keep_hpc_linked
 from glue_solar.sources.moments import _accepted, _form, _start, _view
 
@@ -239,7 +239,7 @@ def _maps(layers):
     datasets = [
         layer
         for layer in layers
-        if isinstance(layer, Data) and (layer.ndim == 2 or (layer.ndim == 3 and _role(layer) is None))
+        if isinstance(layer, Data) and (layer.ndim == 2 or (layer.ndim == 3 and describe.role(layer) is None))
     ]
     if sum(len(data.main_components) for data in datasets) < 2:
         raise ValueError("Select two maps on the same grid, such as the line moments of two lines.")

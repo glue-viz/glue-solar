@@ -73,40 +73,28 @@ from astropy.wcs.wcsapi import HighLevelWCSWrapper
 
 from sunpy.coordinates import get_earth
 
+from glue_solar import describe
 from glue_solar.glue_patches import _takes
 from glue_solar.lines import KM_S, _icon, rest_wavelength
 from glue_solar.quicklook import (
-    _IRIS_ROLES,
     QuicklookImageViewer,
     _across,
     _check_cut,
     _curve_sources,
     _cut,
     _frame_index,
-    _frame_pixels,
-    _half_cadence,
-    _hpc,
-    _is_sit_and_stare,
-    _lon_lat,
     _off,
     _place,
     _point_curves,
-    _role,
     _seconds_text,
     _shown,
-    _spectral_axes,
     _switch,
     _sync_text,
-    _time_axis,
     _time_text,
-    _timed,
-    _times,
     _value_text,
     _wing,
     _world_text,
     coordinator,
-    nearest,
-    observation_key,
 )
 from glue_solar.sources.dkist import DKISTData, _frame_axis, _held_axes, _slit, _SlitPlace, _time_axes
 from glue_solar.sources.iris import _write_ecsv
@@ -159,7 +147,7 @@ def _time_component(data):
 
 def _sit_and_stare_raster(data):
     """Whether ``data`` is a sit-and-stare raster window, whose leading axis is its exposures."""
-    return data is not None and _role(data) == "raster" and data.ndim == 3 and _is_sit_and_stare(data)
+    return data is not None and describe.role(data) == "raster" and data.ndim == 3 and describe.is_sit_and_stare(data)
 
 
 def _beside_exposures(data, axis):
@@ -719,13 +707,15 @@ class BandTool(Tool):
 
     def _enable(self, *_):
         state = self.viewer.state
-        self.enabled = state.reference_data is not None and bool(_spectral_axes(state.reference_data) - _shown(state))
+        self.enabled = state.reference_data is not None and bool(
+            describe.spectral_axes(state.reference_data) - _shown(state)
+        )
 
     def _axes(self, slices):
         """The wavelength axes of the reference data that the viewer does not show, for ``slices``."""
         state = self.viewer.state
         data = state.reference_data
-        return set() if data is None or len(slices) != data.ndim else _spectral_axes(data) - _shown(state)
+        return set() if data is None or len(slices) != data.ndim else describe.spectral_axes(data) - _shown(state)
 
     def _band(self, slices):
         for index in slices:
@@ -753,7 +743,7 @@ def _sky_coords(viewer):
     data = state.reference_data
     if data is None or None in (state.x_att, state.y_att):
         return None
-    if _is_sit_and_stare(data) and 0 in (state.x_att.axis, state.y_att.axis):  # an index, as its ticks show
+    if describe.is_sit_and_stare(data) and 0 in (state.x_att.axis, state.y_att.axis):  # an index, as its ticks show
         return None
     angles = {coord.coord_type: coord for coord in viewer.axes.coords if coord.coord_index is not None}
     if sorted(angles) != ["latitude", "longitude"]:  # also no wavelength or time beside them
@@ -952,16 +942,20 @@ class RasterOverlaysTool(Tool):
     @property
     def checked(self):
         """Whether the overlays of the viewer's observation show, as the View menu entry's check mark says."""
-        return observation_key(self.viewer.state.reference_data) in getattr(coordinator(self.viewer._data), self.shown)
+        return describe.observation_key(self.viewer.state.reference_data) in getattr(
+            coordinator(self.viewer._data), self.shown
+        )
 
     def activate(self):
-        coordinator(self.viewer._data).toggle_overlays(observation_key(self.viewer.state.reference_data), self.shown)
+        coordinator(self.viewer._data).toggle_overlays(
+            describe.observation_key(self.viewer.state.reference_data), self.shown
+        )
 
     def offered(self):
         """Whether a raster of the viewer's observation is loaded, which the View menu checks as it opens."""
-        key = observation_key(self.viewer.state.reference_data)
-        rasters = (data for data in self.viewer._data if _role(data) == "raster")
-        return key is not None and any(observation_key(data) == key for data in rasters)
+        key = describe.observation_key(self.viewer.state.reference_data)
+        rasters = (data for data in self.viewer._data if describe.role(data) == "raster")
+        return key is not None and any(describe.observation_key(data) == key for data in rasters)
 
 
 @viewer_tool
@@ -980,9 +974,13 @@ class FieldOfViewTool(RasterOverlaysTool):
     def offered(self):
         """Whether the viewer shows an AIA cutout or SOT cube of an observation with a raster or slit-jaw image loaded."""
         data = self.viewer.state.reference_data
-        key = observation_key(data)
-        iris = (each for each in self.viewer._data if _role(each) in ("raster", "sji"))
-        return key is not None and _role(data) == "aia" and any(observation_key(each) == key for each in iris)
+        key = describe.observation_key(data)
+        iris = (each for each in self.viewer._data if describe.role(each) in ("raster", "sji"))
+        return (
+            key is not None
+            and describe.role(data) == "aia"
+            and any(describe.observation_key(each) == key for each in iris)
+        )
 
 
 def _shown_time(state):
@@ -1003,12 +1001,12 @@ def _shown_time(state):
 def _helioprojective_frame(state):
     """
     Whether the Image viewer ``state`` shows its reference data's last two axes, along which only its helioprojective
-    longitude and latitude vary (`_hpc`), as an IRIS slit-jaw image, AIA map, SST cube or DKIST imager's frame.
+    longitude and latitude vary (`describe.hpc`), as an IRIS slit-jaw image, AIA map, SST cube or DKIST imager's frame.
     """
     data = state.reference_data
     if data is None or data.ndim < 2 or len(state.slices) != data.ndim:
         return False
-    hpc, last = _hpc(data), {data.ndim - 2, data.ndim - 1}
+    hpc, last = describe.hpc(data), {data.ndim - 2, data.ndim - 1}
     return hpc is not None and _shown(state) == last and last <= set(hpc[1])
 
 
@@ -1038,7 +1036,7 @@ def _footprint(data, when):
     if when is not None and data._frames is not None:
         offsets = abs(data._frames[0] - when)
         index = np.unravel_index(np.argmin(offsets), offsets.shape)
-        timed = offsets[index] <= _half_cadence(data._frames[0].ravel())
+        timed = offsets[index] <= describe.half_cadence(data._frames[0].ravel())
     if not set(_HPC) <= set(data.coords.world_axis_physical_types):
         return None
     moves, step = _axes_of(data, *_HPC), _frame_axis(data)
@@ -1055,7 +1053,7 @@ def _footprint(data, when):
     pixel = [index[a] if a < len(index) else n // 2 for a, n in enumerate(data.shape)]
     for a, edge in zip(spatial, Path.unit_rectangle().interpolated(16).vertices.T):  # edges the gWCS can bend
         pixel[a] = edge * data.shape[a] - 0.5
-    return [v[None] for v in _lon_lat(data, pixel)], None, None
+    return [v[None] for v in describe.lon_lat(data, pixel)], None, None
 
 
 def _on_view(state, lon, lat):
@@ -1067,7 +1065,7 @@ def _on_view(state, lon, lat):
     data = state.reference_data
     types, units = list(data.coords.world_axis_physical_types), data.coords.world_axis_units
     lon, lat = (u.Quantity(v, u.arcsec).to_value(units[types.index(kind)]) for v, kind in zip((lon, lat), _HPC))
-    x, y = _frame_pixels(data, _frame_index(state), lon.ravel(), lat.ravel())
+    x, y = describe.frame_pixels(data, _frame_index(state), lon.ravel(), lat.ravel())
     if state.x_att.axis != data.ndim - 1:  # a frame shown transposed
         x, y = y, x
     return [np.hstack([np.reshape(v, lon.shape), np.full((len(lon), 1), np.nan)]).ravel() for v in (x, y)]
@@ -1691,7 +1689,7 @@ def _on_sky(data, lon, lat, when):
     The two pixel components of ``data`` along which only its helioprojective angles vary, each with the positions of
     ``lon, lat`` along it at the frame or scan nearest ``when``; None unless there are two.
     """
-    found = _hpc(data)
+    found = describe.hpc(data)
     if found is None or len(found[1]) != 2:
         return None
     wcs, (sky, axes) = data.coords, found
@@ -1700,7 +1698,7 @@ def _on_sky(data, lon, lat, when):
     for axis in _axes_of(data, *_HPC) - set(axes) if time is not None and when is not None else ():
         along = [0] * data.ndim
         along[axis] = slice(None)
-        [index[axis]], _ = nearest([when], data[time, tuple(along)])
+        [index[axis]], _ = describe.nearest([when], data[time, tuple(along)])
     world = list(wcs.pixel_to_world_values(*index[::-1]))
     for axis, angle in zip(sky, (lon, lat), strict=True):
         world[axis] = angle.to_value(wcs.world_axis_units[axis])
@@ -2006,7 +2004,7 @@ class _TimeMasterEntry(_CoordinateEntry):
 
     def offered(self):
         data = self.viewer.state.reference_data
-        return _timed(data) and observation_key(data) is not None
+        return describe.timed(data) and describe.observation_key(data) is not None
 
 
 class _ClearPointEntry(_CoordinateEntry):
@@ -2033,7 +2031,7 @@ class _LinkPointsEntry(_CoordinateEntry):
     def offered(self):
         # on a quicklook panel of a cube that is not IRIS data, the points it links
         owned = any(self.viewer in viewers for viewers in self.menu.coordinator._owners.values())
-        return owned and _role(self.viewer.state.reference_data) not in _IRIS_ROLES
+        return owned and describe.role(self.viewer.state.reference_data) not in describe.IRIS_ROLES
 
 
 class _PointCurvesEntry(_CoordinateEntry):
@@ -2047,7 +2045,7 @@ class _PointCurvesEntry(_CoordinateEntry):
 
     def offered(self):
         # on a viewer of IRIS, AIA or SOT data, where the point has curves to plot, as `_point_curves` checks
-        role = _role(self.viewer.state.reference_data)
+        role = describe.role(self.viewer.state.reference_data)
         return role in ("raster", "sji", "aia") and _takes(_curve_sources, self.viewer.session.application)
 
 
@@ -2078,7 +2076,7 @@ def _first_slider(viewer):
     scans), a DKIST pair's of its time axis (D105), or None where it has none, as while the viewer shows that axis.
     """
     sliders = viewer.options_widget().slice_helper._sliders
-    axis = _time_axis(viewer.state.reference_data) or 0
+    axis = describe.time_axis(viewer.state.reference_data) or 0
     return sliders[axis] if axis < len(sliders) else None
 
 
@@ -2094,10 +2092,10 @@ class _GoToUTCEntry(_CoordinateEntry):
 
     def _master(self):
         data = self.viewer.state.reference_data
-        return self.menu.coordinator._master(observation_key(data)) if _timed(data) else None
+        return self.menu.coordinator._master(describe.observation_key(data)) if describe.timed(data) else None
 
     def offered(self):
-        timed = _timed(self.viewer.state.reference_data)
+        timed = describe.timed(self.viewer.state.reference_data)
         return self._master() is not None or (timed and _first_slider(self.viewer) is not None)
 
     @messagebox_on_error("Could not go to UTC")
@@ -2110,10 +2108,10 @@ class _GoToUTCEntry(_CoordinateEntry):
             raise ValueError("The viewer has no frame, exposure, step or scan slider of timed data.")
         moved = data if master is None else master
         index, step = coordinator._timing(moved)
-        axis = _time_axis(data) or 0  # a DKIST pair's time axis (D105)
+        axis = describe.time_axis(data) or 0  # a DKIST pair's time axis (D105)
         if master is None:
             index = getattr(state.slices[axis], "center", state.slices[axis])
-        times = _times(moved, step)
+        times = describe.times(moved, step)
         shown = np.datetime_as_string(times[index], unit="ms")
         text, ok = QtWidgets.QInputDialog.getText(viewer, "Go to UTC", "UTC time:", text=shown)
         if not ok:
@@ -2124,8 +2122,8 @@ class _GoToUTCEntry(_CoordinateEntry):
             when = np.datetime64("NaT", "ns")
         if np.isnat(when):
             raise ValueError(f"'{text}' is not a UTC time, such as 2013-09-02T17:00:00.")
-        [index], [offset] = nearest([when], times)
-        if abs(offset) > _half_cadence(times):
+        [index], [offset] = describe.nearest([when], times)
+        if abs(offset) > describe.half_cadence(times):
             seconds = offset / np.timedelta64(1, "s")
             raise ValueError(
                 f"Nothing in {moved.label} is within half a cadence of {text}: the nearest, {index}, is "
@@ -2307,7 +2305,7 @@ class SaveSequenceTool(Tool):
         data = state.reference_data
         # playback, of the slider or of the time master it follows, would move the frame between a move and its save
         sync = coordinator(viewer._data)
-        master = sync._master(observation_key(data)) if _timed(data) else None
+        master = sync._master(describe.observation_key(data)) if describe.timed(data) else None
         masters = [] if master is None else sync._viewers_of(master)
         for each in [s for _, s in sliders] + [_first_slider(v) for v in masters if isinstance(v, ImageViewer)]:
             if each is not None and each._play_timer.isActive():
@@ -2464,7 +2462,7 @@ def _profile_table(viewer):
         if state.normalize:
             columns.append(Column(layer.normalize_values(y), f"{name}_y_normalized", description=layer.layer.label))
         axis = is_convertible_to_single_pixel_cid(data, state.x_att_pixel).axis
-        if _time_component(data) is not None and _time_axis(data) == axis:
+        if _time_component(data) is not None and describe.time_axis(data) == axis:
             view = tuple(slice(None) if a == axis else p or 0 for a, p in enumerate(fixed))
             columns.append(Column(data[_time_component(data), view], f"{name}_time"))
         if any(p is not None for p in fixed) and data.coords is not None:
@@ -2570,7 +2568,7 @@ def _show_position(viewer, coordinator, data, slices, per_frame=(), visible=()):
         if data is shown:
             state.slices = slices
             return
-        index, axis = coordinator.following(data), _time_axis(data) or 0  # a DKIST pair's time axis (D105)
+        index, axis = coordinator.following(data), describe.time_axis(data) or 0  # a DKIST pair's time axis (D105)
         if index is not None and not isinstance(slices[axis], AggregateSlice):
             slices = (*slices[:axis], index, *slices[axis + 1 :])
         for layer in visible:
@@ -2625,7 +2623,7 @@ def _pressed(session):
     """
     viewer = session.application.current_tab.activeSubWindow().widget()
     data, sync = viewer.state.reference_data, coordinator(session.data_collection)
-    return viewer, sync, sync._master(observation_key(data)) if _timed(data) else None
+    return viewer, sync, sync._master(describe.observation_key(data)) if describe.timed(data) else None
 
 
 def _step(slider, delta):
@@ -2643,7 +2641,8 @@ def _frame_key(delta, session):
     viewer, sync, master = _pressed(session)
     if master is not None:
         index, _ = sync._timing(master)
-        sync.move_master(master, (index + delta) % master.shape[_time_axis(master) or 0])  # a DKIST pair's (D105)
+        # a DKIST pair's (D105)
+        sync.move_master(master, (index + delta) % master.shape[describe.time_axis(master) or 0])
     elif isinstance(viewer, ImageViewer):
         _step(_first_slider(viewer), delta)
 
@@ -2661,7 +2660,7 @@ def _wavelength_key(delta, session):
         data = each.state.reference_data
         if isinstance(each, ImageViewer) and data is not None:
             sliders = each.options_widget().slice_helper._sliders
-            for axis in _spectral_axes(data):
+            for axis in describe.spectral_axes(data):
                 _step(sliders[axis] if axis < len(sliders) else None, delta)
 
 

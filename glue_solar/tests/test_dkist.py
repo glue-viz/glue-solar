@@ -44,9 +44,9 @@ from astropy.stats import mad_std
 from astropy.time import Time
 from astropy.wcs.utils import pixel_to_pixel
 
-from glue_solar import glue_patches
+from glue_solar import describe, glue_patches
 from glue_solar.conftest import find_irispy_test_file, int16_copy
-from glue_solar.quicklook import _lon_lat, _times, coordinator, quicklook
+from glue_solar.quicklook import coordinator, quicklook
 from glue_solar.regrid import regrid_on_time
 from glue_solar.sources.dkist import DKISTWCS, DKISTData, _data, _glue_order, _SlitAt, _SlitPlace, dkist_data
 from glue_solar.sources.dkist_actions import frame_quality_dkist
@@ -854,7 +854,9 @@ def test_link_helioprojective_coordinates_links_a_context_image_of_repeated_meas
     sji = image_data(with_times(path, start + 100 * (np.arange(62) - 10)))
     # its frame 12 at (20, 18) shifted onto step 1's measurement 2, 200 s after the first, as 'IRIS: shift pointing…'
     at = (0, 1, 2, 944, 875)
-    sji.coords.pointing_offset = tuple(float(a - b) for a, b in zip(_lon_lat(cryo, at), _lon_lat(sji, (12, 20, 18))))
+    sji.coords.pointing_offset = tuple(
+        float(a - b) for a, b in zip(describe.lon_lat(cryo, at), describe.lon_lat(sji, (12, 20, 18)))
+    )
     dc = app.data_collection
     dc.extend([sji, cryo])
     link_iris(app.session, dc)
@@ -1025,9 +1027,9 @@ def test_iris_points_reach_a_dkist_raster_at_its_step_and_slit_pixel_and_back(
         raster = slit_raster(0.01) if name == "sit-and-stare" else load_data(str(dkist_sample(name)))
     # the slit-jaw image's frame 10 at (20, 18) and the IRIS raster's step 5 at slit pixel 20 shifted onto the raster's
     # pixel ``at``, as 'IRIS: shift pointing…' co-aligns them
-    place = _lon_lat(raster, at)
+    place = describe.lon_lat(raster, at)
     for data, pixel in ((sji, (10, 20, 18)), (iris_raster, (5, 20, 0))):
-        data.coords.pointing_offset = tuple(float(a - b) for a, b in zip(place, _lon_lat(data, pixel)))
+        data.coords.pointing_offset = tuple(float(a - b) for a, b in zip(place, describe.lon_lat(data, pixel)))
     dc = app.data_collection
     dc.extend([sji, iris_raster, raster])
     link_iris(app.session, dc)
@@ -1059,11 +1061,11 @@ def test_an_iris_point_past_half_a_step_beyond_a_dkist_raster_s_end_does_not_rea
         raster = load_data(str(asdf_alone(tmp_path, "croppable_visp")))
     app.data_collection.extend([sji, raster])
     link_iris(app.session, app.data_collection)
-    unshifted = _lon_lat(sji, (10, 20, 18))  # before any offset, which moves it
+    unshifted = describe.lon_lat(sji, (10, 20, 18))  # before any offset, which moves it
     for end, inner in ((0, 1), (687, 686)):  # the raster's first and last steps, and the next
         for off in (0.49, 0.51):
             # the slit-jaw image's frame 10 at (20, 18) shifted ``off`` a step beyond step ``end``, at slit pixel 0
-            edge, next_ = (np.array(_lon_lat(raster, (0, step, 400, 0))) for step in (end, inner))
+            edge, next_ = (np.array(describe.lon_lat(raster, (0, step, 400, 0))) for step in (end, inner))
             place = edge + off * (edge - next_)
             sji.coords.pointing_offset = tuple(float(a - b) for a, b in zip(place, unshifted))
             # within half a step it reaches that step, and past it none, as the quicklook's no match (D7), where it
@@ -1080,10 +1082,10 @@ def test_an_iris_point_reaches_a_dkist_raster_with_repeats_at_the_step_whose_sli
     # 3 repeats, each a step west of the last, as dkist's pointing moves along ViSP's repeats and Cryo-NIRSP's
     # measurements; the slit-jaw image's frame 10 at the time of the last repeat's step 2, its (20, 18) shifted onto
     # that repeat's step 0
-    seconds = (_times(sji, None)[10] - np.datetime64(0, "s")) / np.timedelta64(1, "s")
+    seconds = (describe.times(sji, None)[10] - np.datetime64(0, "s")) / np.timedelta64(1, "s")
     raster = visp_like(repeats=3, drift=0.5, start=seconds - 80)
-    place = _lon_lat(raster, (0, 2, 0, 4, 0))
-    sji.coords.pointing_offset = tuple(float(a - b) for a, b in zip(place, _lon_lat(sji, (10, 20, 18))))
+    place = describe.lon_lat(raster, (0, 2, 0, 4, 0))
+    sji.coords.pointing_offset = tuple(float(a - b) for a, b in zip(place, describe.lon_lat(sji, (10, 20, 18))))
     dc = app.data_collection
     dc.extend([sji, raster])
     link_iris(app.session, dc)
@@ -1101,10 +1103,10 @@ def test_an_iris_point_reaches_a_dkist_raster_of_one_step_with_repeats_within_ha
     sji, _ = sns
     # one step, its time along its 3 repeats 30 s apart, which take the time as the step the longitude; the slit-jaw
     # image's frame 10 at the time of the last repeat, its (20, 18) shifted onto its slit
-    seconds = (_times(sji, None)[10] - np.datetime64(0, "s")) / np.timedelta64(1, "s")
+    seconds = (describe.times(sji, None)[10] - np.datetime64(0, "s")) / np.timedelta64(1, "s")
     raster = visp_like(repeats=3, start=seconds - 60, steps=1)
-    place = _lon_lat(raster, (0, 2, 0, 4, 0))
-    lon, lat = (float(a - b) for a, b in zip(place, _lon_lat(sji, (10, 20, 18))))
+    place = describe.lon_lat(raster, (0, 2, 0, 4, 0))
+    lon, lat = (float(a - b) for a, b in zip(place, describe.lon_lat(sji, (10, 20, 18))))
     sji.coords.pointing_offset = (lon, lat)
     dc = app.data_collection
     dc.extend([sji, raster])
@@ -2077,11 +2079,10 @@ def test_dkist_footprints_draw_on_a_map_from_the_datasets_coordinates_alone_and_
 def test_dkist_footprints_draw_on_an_iris_slit_jaw_frame_where_its_coordinates_place_them(
     app, monkeypatch, irispy_test_files
 ):
-    from glue_solar.quicklook import _frame_pixels
 
     sji = image_data(find_irispy_test_file(irispy_test_files, SJI))
     # the raster's step 1 at the slit-jaw frame 1's time
-    when = _times(sji, None)[1]
+    when = describe.times(sji, None)[1]
     raster = visp_like(start=(when - np.datetime64(0, "ns")) / np.timedelta64(1, "s") - 10)
     app.data_collection.extend([sji, raster])
     viewer = app.new_data_viewer(ImageViewer, data=sji)
@@ -2090,8 +2091,8 @@ def test_dkist_footprints_draw_on_an_iris_slit_jaw_frame_where_its_coordinates_p
     lines, labels = footprint_lines(viewer)
     # each step's slit from -0.5 to 9.5 pixels along it, placed in that frame as the quicklook places points on it
     steps = np.repeat([[0], [1], [2]], 2, axis=1)
-    lon, lat = _lon_lat(raster, (0, steps, np.tile([-0.5, 9.5], (3, 1)), 0))
-    x, y = _frame_pixels(sji, [1, 0, 0], lon, lat)
+    lon, lat = describe.lon_lat(raster, (0, steps, np.tile([-0.5, 9.5], (3, 1)), 0))
+    x, y = describe.frame_pixels(sji, [1, 0, 0], lon, lat)
     assert np.isfinite([x, y]).all()
     nan = np.full((3, 1), np.nan)
     np.testing.assert_allclose(lines["C0", 0.5], [np.hstack([x, nan]).ravel(), np.hstack([y, nan]).ravel()])
@@ -2099,7 +2100,7 @@ def test_dkist_footprints_draw_on_an_iris_slit_jaw_frame_where_its_coordinates_p
     assert labels == ["VISP RASTER"]
     # and where a shift of its pointing moves them, at once
     shift(monkeypatch, sji, app.data_collection, (10, 0))
-    x, y = _frame_pixels(sji, [1, 0, 0], lon, lat)
+    x, y = describe.frame_pixels(sji, [1, 0, 0], lon, lat)
     np.testing.assert_allclose(footprint_lines(viewer)[0]["C0", 1.5], [[*x[1], np.nan], [*y[1], np.nan]])
 
 

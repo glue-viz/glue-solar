@@ -23,9 +23,9 @@ from scipy import signal
 import astropy.units as u
 from astropy.modeling import fitting, models
 
+from glue_solar import describe
 from glue_solar.glue_patches import _get_fitter
 from glue_solar.lines import KM_S, _doppler_rest
-from glue_solar.quicklook import _role
 from glue_solar.sources.loaders.lazy import at_ceiling
 
 _KINDS = {
@@ -456,7 +456,7 @@ def _saturated(layer, state):
     data.
     """
     data = layer.data
-    if _role(data) not in ("raster", "sji"):
+    if describe.role(data) not in ("raster", "sji"):
         return False, False
     axis = is_convertible_to_single_pixel_cid(data, state.x_att_pixel).axis
     axes = tuple(i for i in range(data.ndim) if i != axis)

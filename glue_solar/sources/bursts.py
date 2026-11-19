@@ -17,8 +17,8 @@ from astropy.table import vstack
 from astropy.time import Time
 from astropy.wcs.wcsapi.wrappers import SlicedLowLevelWCS
 
+from glue_solar import describe
 from glue_solar.glue_patches import layer_action
-from glue_solar.quicklook import _role, _wavelengths
 from glue_solar.sources.loaders.iris import WCS_LOCK, _add_time, _GlueWCS, _irispy_meta
 from glue_solar.sources.moments import _accepted, _check, _dataset, _form, _start
 
@@ -34,13 +34,13 @@ MIN_PIXELS = 2
 
 def _is_sji(data):
     """Whether ``data`` is a 1400 Å slit-jaw image, else an IRIS raster window or stack; raise why for neither."""
-    if _role(data) == "sji" and data.ndim == 3:
+    if describe.role(data) == "sji" and data.ndim == 3:
         if data.find_component_id("Exposure time") is None:  # bursts' labels, which keep the image's meta
             raise ValueError(f"{data.label} is not an IRIS slit-jaw image.")
         if data.meta.get("TWAVE1") != 1400:
             raise ValueError(f"{data.label} is not a 1400 Å slit-jaw image, in which irispy finds UV bursts.")
         return True
-    if _role(data) != "raster":
+    if describe.role(data) != "raster":
         raise ValueError(f"{data.label} is not an IRIS raster window or slit-jaw image.")
     _check(data)
     return False
@@ -53,7 +53,7 @@ def _crop(data, velocity_range):
     """
     from irispy.utils.bursts import _SI_IV
 
-    wavelengths, _ = _wavelengths(data)
+    wavelengths, _ = describe.wavelengths(data)
     velocity = (wavelengths * u.AA).to_value(u.km / u.s, equivalencies=u.doppler_optical(_SI_IV))
     inside = np.flatnonzero(np.abs(velocity) <= velocity_range)
     if not inside.size:
