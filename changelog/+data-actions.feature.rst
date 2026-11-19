@@ -1,0 +1,1 @@
+"IRIS: regrid on time", "IRIS: rebin…", "IRIS: north up", "IRIS: shift pointing…", "IRIS: remove dust" and "IRIS: radiometric calibration" put data on an even time step, bin them, show an image north up, offset a dataset's pointing, clean a slit-jaw image and add a raster window's radiance; data made from a dataset follow its pointing shifts.

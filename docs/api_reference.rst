@@ -28,6 +28,8 @@ API Reference
 .. automodapi:: glue_solar.quicklook
    :no-inheritance-diagram:
    :skip: coordinator
+   :skip: Coordinator
+   :skip: QuicklookImageViewer
 
 .. automodapi:: glue_solar.lines
    :no-inheritance-diagram:

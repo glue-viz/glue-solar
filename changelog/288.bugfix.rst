@@ -1,1 +1,0 @@
-A Pixel click on a quicklook panel moves the point even while a dataset is selected in the Data Collection, instead of making a new subset.

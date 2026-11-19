@@ -108,7 +108,7 @@ and can lead it.
 The "Frame time" line under each panel gives the time of day of the frame shown, such as
 ``17:19:13`` (its tooltip gives the date and milliseconds), and "leads time" or the offset Δt from
 the leading dataset's time. A dataset with nothing within half its time step of that time keeps its
-frame, is grayed and says "NO MATCH". The panels show no mouse-mode hints.
+frame, is grayed and says "NO MATCH".
 
 - **Go to a time.** "Go to UTC…" in the Coordinate menu moves the dataset that leads the time to its
   frame nearest a typed time, such as ``2013-09-02T17:00:00``.
@@ -120,8 +120,7 @@ Lines mark the wavelength and the time. The wavelength panel has a dashed white 
 wavelength and a dotted one at the synced time; the spectrum panel has a dashed gray line at the
 map's wavelength. "Raster overlays" in the View menu draws each raster step's slit on the slit-jaw
 images, and the step at the synced time on the maps. A zoom on the spectrum panel's wavelength axis
-gives the wavelength panel the same range. Axis labels give their units, such as "Wavelength
-[Angstrom]", and the spectrum panel's y axis is "Data values" in the data's unit.
+gives the wavelength panel the same range.
 
 Regions
 -------
@@ -146,10 +145,9 @@ The Coordinate menu's "Point" submenu plots the data through the point. Each plo
 - **"Row at the point"** and **"Column at the point"**, on any raster map: the map's row along x, or
   its column along the slit, through the point.
 
-The light curves' y axis gives their units. A Scatter viewer with time on its x axis, such as those
-light curves, highlights the exposure of the dataset that leads the time as the subset "Current
-exposure", and only there: on any other viewer its layer is removed at the next step, since it would
-be redrawn at each one.
+A Scatter viewer with time on its x axis, such as those light curves, highlights the exposure of the
+dataset that leads the time as the subset "Current exposure", and only there: on any other viewer its
+layer is removed at the next step.
 
 Comparing windows
 -----------------
@@ -203,15 +201,16 @@ The spectrum panel
 ------------------
 
 The spectrum panel is glue's 1D Profile viewer, with glue-solar's "Main lines" and "Velocity axis"
-buttons (see :ref:`Viewer tools <glue_solar_users_guide_viewer_tools_and_windows>`). "Main lines"
-marks the documented IRIS lines of irispy's line catalog at their vacuum wavelengths. Its "Options" open glue's `profile tools
-<http://docs.glueviz.org/en/stable/gui_guide/spectrum.html>`__:
+buttons (see :ref:`Viewer tools <glue_solar_users_guide_viewer_tools_and_windows>`). Its "Options"
+open glue's `profile tools <http://docs.glueviz.org/en/stable/gui_guide/spectrum.html>`__:
 
 - **Navigate.** Click the spectrum to move the map to the nearest wavelength.
 - **Collapse.** Drag a wavelength range of two samples or more, pick a function such as Mean, and
   press "Collapse": the maps show the band until a slider moves. For a band that follows the slider,
   choose "Wavelength band…" in the map's View menu.
-- **Fit.** Fit a line in a dragged range (below).
+- **Fit.** Fit a line in a dragged range: see :ref:`Building the model
+  <glue_solar_users_guide_iris_fit_settings>` for the model, the Mg II peaks and a rest wavelength
+  measured on a line.
 
 Keep the "x unit" at ``Angstrom``, the data's own, for Navigate and Collapse.
 
@@ -221,56 +220,6 @@ Keep the "x unit" at ``Angstrom``, the data's own, for Navigate and Collapse.
 the x unit lists ``km / s``: (λ / rest - 1) c, so Mg II k 2796.352 Å is at 0 km / s. "Velocity axis"
 adds a top axis in km / s while the x unit is a length. Both follow "Set rest wavelength…". A
 window without one, such as ``2832``, has neither.
-
-**Rest wavelength from a measured line.** Level 2 wavelengths can be off by 5 to 10 km / s, and the
-FUV and NUV drift apart. Measure the offset on a line nearly at rest: O I 1355.5977 Å for the FUV
-windows (C II, Si IV, O I), or Ni I 2799.474 Å in the Mg II k 2796 window for the NUV.
-
-1. Set the panel's function to "Mean" for the whole raster's signal.
-2. On the "Fit" tab, pick "Gaussian + constant" and drag over the line: about 1355.4 to
-   1355.8 Å for O I, or 2799.3 to 2799.65 Å for Ni I. Press "Fit".
-3. Add the offset, the fitted center less the line's rest wavelength, to the rest wavelength of a
-   line on the same detector, and set that with "Set rest wavelength…" on its window.
-
-On OBSID 3824262996, O I fits at 1355.6172 Å (+4.30 km / s), so Si IV 1402.77 Å becomes
-1402.789 Å. A saturated sample is only a lower bound, so the fit leaves a sample out where all the
-pixels it combines are saturated (for a Point, where it is), says how many, and notes the wavelengths
-whose mean includes saturated pixels, biased low (see :ref:`Missing and saturated samples
-<glue_solar_users_guide_iris_saturation>`). To fit the same model to every spectrum of the window, see
-:ref:`Line fit maps <glue_solar_users_guide_iris_line_fit_maps>`.
-
-.. _glue_solar_users_guide_iris_fit_settings:
-
-**Building the model.** "Settings" on the "Fit" tab lists the components of "Gaussian + constant",
-at first a constant background and a Gaussian. Pick a Gaussian, a Lorentzian, or a constant,
-linear or polynomial background (with its degree) and press "Add"; "Remove" drops one. Each parameter
-has a start (blank: from the data), "Fixed", and a lower and an upper bound, either alone. A line's
-parameter can be "Tied to" the same parameter of a line above it: an amplitude or a width is that
-line's times the ratio (blank: the same), a center is that line's plus the separation, in the x unit;
-a tie to a tied line follows it, its separations adding up and its ratios multiplying. For C II
-1334.53 Å and its 1335.66 and 1335.71 Å blend:
-
-1. Add two Gaussians and give ``mean_1`` the start 1334.53.
-2. Tie ``mean_2`` to ``mean_1`` by 1.1305, and ``mean_3`` to ``mean_1`` by 1.1756.
-3. Give each amplitude the lower bound 0, press "OK", drag over 1334.1 to 1336.2 Å and press "Fit".
-
-The fit is drawn over the spectrum in a darker shade of its color, with each line on the background
-dashed; "Clear" removes them. A line without a start begins at one of the most prominent peaks
-(emission peaks only where each such line's amplitude has a lower bound of 0 or more, absorption
-where an upper bound of 0 or less), and each line at its peak among the samples nearer its center
-than any other line's, so give a blend's lines starts or ties. The fit can be made with the x unit
-in Å or ``km / s``, the starts, bounds and separations then in it. "Fit every spectrum" then fits
-the model to every spectrum of the window (see :ref:`Line fit maps
-<glue_solar_users_guide_iris_line_fit_maps>`).
-
-**Saving a model.** "Save…" in Settings writes the components and every start, "Fixed", bound and
-tie to a file, and "Open…" reads one back, so a complex model, such as five Gaussians, two of them
-negative, is built once. Its values are in the x unit it was made in.
-
-**Mg II.** Mg II k and h are each double-peaked. Drag the Fit range over one line's core, about
-±40 km/s, and press "Mg II two peaks" in Settings: two Gaussians on a constant, one for each emission
-peak (k2v and k2r, or h2v and h2r), each starting at its peak. Fit the other line in its own range.
-For the peaks' and line centers' positions without a fit, use "IRIS: Mg II features…".
 
 **Mean spectrum.** "IRIS: subtract mean spectrum", in a raster window's right-click menu, adds
 ``<window> mean spectrum`` and ``<window> minus mean spectrum``. Set the "attribute" of "Point" in the
@@ -283,20 +232,46 @@ shows where each wavelength is brighter or fainter than the mean.
 Sessions
 --------
 
-A saved session opens each quicklook again with its point, the dataset leading the time, panel
-settings, the datasets dragged onto its panels and panels turned off, but not raster overlays, a blink or panels moved
-by hand. A light curve, row or column no
-longer follows the point. See :ref:`Saving sessions <glue_solar_users_guide_saving_sessions>`.
+A saved session opens each quicklook again: for what it keeps, see :ref:`Saving sessions
+<glue_solar_users_guide_saving_sessions>`.
 
 Other spectral cubes
 --------------------
 
+.. _glue_solar_users_guide_sst_quicklook:
+
+The quicklook of an SST cube (see :ref:`glue_solar_users_guide_loading_sst_cubes`) opens from the
+browser, or with "Quicklook…" in the cube's right-click menu, in a tab named after its line, such
+as "SST Ca II 8542". Its panels are in three rows:
+
+- the map at the line core, the tuning nearest the cube's line; a second map at the first tuning,
+  the blue wing; and the virtual slit, wavelength against y at the point's x;
+- the spectra at the point of Stokes I, Q, U and V;
+- wavelength against scan at the point, and the light curve at the point, against "Scan Time", the
+  scans' time in s since the cube's ``DATEREF``, which also names the scan slider.
+
+Both maps open zoomed to the field, without a mosaic's NaN border. The second map opens with
+"Per-frame limits" on, as the whole cube's limits wash the brighter wing out.
+
+The point, clicks and keys work as in the IRIS quicklook, and the scan and Stokes sliders of either
+map move the other panels. Cubes with overlapping scan times, such as the CRISP and CHROMIS cubes of
+one morning, share one time. Once linked (see :ref:`Linking <glue_solar_users_guide_iris_linking>`),
+a point on one cube moves the points of the other cubes that share its time to the same place on
+the Sun, each at its own scan and tuning, while Coordinate → Point → "Link points across cubes" is
+on, as it is at first; IRIS data's points stay. Another such cube's quicklook opens with its point
+at that place, or at its map's center if the place is off the cube.
+
+Q, U and V show scaled with their noise level, their standard deviation at the continuum: their
+maps' limits are ±5 times it for Q and U and ±10 times for V, and their spectra span at least as
+much, with the noise level shaded about 0. View → "Per-frame limits" gives each frame its own limits
+instead; on the second map it changes I's only.
+
 A cube of another instrument, such as a FITS file glue's own reader opens, has a quicklook when it
 has one wavelength axis and two axes of position, besides any time and Stokes axes. Choose
-"Quicklook…" in its right-click menu. Its panels are those of the SST quicklook (see
-:ref:`glue_solar_users_guide_loading_sst_cubes`) without the second map. A DKIST spectrograph
-raster's has no wavelength against time or light curve, its time running along its steps, and shows
-its context imager too, if loaded (see :ref:`glue_solar_users_guide_loading_dkist_datasets`).
+"Quicklook…" in its right-click menu. Its panels are those of the SST quicklook without the second
+map. A DKIST spectrograph raster's has no wavelength against time or light curve, its time running
+along its steps, and shows its context imager too, if loaded (see
+:ref:`glue_solar_users_guide_loading_dkist_datasets`).
 
 For CRISPEX users
 -----------------

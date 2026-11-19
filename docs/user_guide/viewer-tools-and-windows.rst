@@ -47,8 +47,8 @@ Image viewer
        Enter: the speed in km / s, and the acceleration from three times, as a row of the diagram's
        table.
      - Enter, Esc
-   * - Pencil → "Save path as ECSV…", "Open path from ECSV…", "Path on other data…"
-     - Save, reopen and reuse a path (see `Path diagrams`_).
+   * - Pencil → "Save path as ECSV…", "Open path from ECSV…", "Path from points…", "Path on other data…"
+     - Save, reopen, type and reuse a path (see `Path diagrams`_).
      -
    * - Coordinate → "Lead the time"
      - Make this dataset's time the one the others follow.

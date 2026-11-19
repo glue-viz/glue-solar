@@ -425,10 +425,10 @@ def sst_data(path):
 
     Its axes are the file's, in numpy order: scan, Stokes, tuning, y and x, but for the Stokes axis of length 1 of a
     cube of intensities, which is left out. Its values stay in the file, memory-mapped, and its coordinates are the
-    file's tabulated WCS (`_TabularWCS`), with the nominal wavelength of each tuning, given ``SPECSYS = 'TOPOCENT'``
-    where the file has none, as astropy needs for a ground-based observatory, and the line core (`_line_core`).
+    file's tabulated WCS, with the nominal wavelength of each tuning, given ``SPECSYS = 'TOPOCENT'`` where the file has
+    none, and the tuning of the line core as ``coords.core``.
     ``Time`` is the UTC time of each tuning of each scan, as the file's ``DATE-AVG`` table gives it, and ``Cavity
-    error`` the wavelength offset of each pixel at each scan from the nominal one, from the file's cavity maps, in the
+    error``, of a file with cavity maps, the wavelength offset of each pixel at each scan from the nominal one, in the
     unit of the wavelength axis, 0 for a tuning without a map. ``meta['VAR-EXT']`` holds the columns of the file's
     ``VAR-EXT`` tables by name, such as the exposure times (``XPOSURE``) and the seeing (``ATMOS_R0``), each a value per
     scan, tuning or Stokes parameter on the cube's axes, 1 long along those it does not change on, or the table's own

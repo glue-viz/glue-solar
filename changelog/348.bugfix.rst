@@ -1,1 +1,0 @@
-Home resumes the quicklook's spectrum and light-curve refits wherever the point is, not only at the last fitted point.

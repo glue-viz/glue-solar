@@ -1,1 +1,0 @@
-Add 'IRIS: remove dust' for slit-jaw images and 'IRIS: radiometric calibration' for raster windows, wrapping irispy's own calibration.

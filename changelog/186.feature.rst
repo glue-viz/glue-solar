@@ -1,1 +1,0 @@
-glue sessions keep Quantity metadata, such as a raster's exposure times, and slit-jaw frame headers.

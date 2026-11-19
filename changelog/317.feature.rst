@@ -1,1 +1,0 @@
-The Profile viewer's Fit tab has 'Fit every spectrum', which fits the window with that viewer's last IRIS fit, made with the x axis in Angstrom or km / s.

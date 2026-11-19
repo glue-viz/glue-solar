@@ -1,1 +1,0 @@
-Sit-and-stare exposure axes are labeled 'Exposure (acquisition order)' with their UTC range and integer ticks, and the Pixel crosshair no longer appears at (0, 0) on the spectrogram and wavelength panels.

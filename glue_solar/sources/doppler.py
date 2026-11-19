@@ -75,8 +75,7 @@ def doppler_image(data, rest, velocities=VELOCITIES, normalized=False):
     either sample is missing or saturated, as the window's mask marks the Level 2 ceiling, 16182 DN. Its
     components are ``red - blue <v> km / s``, in that unit, positive for a brighter red wing, and with ``normalized``,
     ``(red - blue) / (red + blue) <v> km / s``, NaN where a wing is not positive. ``meta`` holds the observation's
-    ``OBSID`` and ``STARTOBS``, ``doppler_rest``, ``doppler_velocities`` and ``doppler_sign``, ``"red - blue"``. The
-    window is read a raster step at a time.
+    ``OBSID`` and ``STARTOBS``, ``doppler_rest``, ``doppler_velocities`` and ``doppler_sign``, ``"red - blue"``.
 
     Parameters
     ----------

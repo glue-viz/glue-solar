@@ -1,1 +1,0 @@
-Removed seven user-guide images that no page used.

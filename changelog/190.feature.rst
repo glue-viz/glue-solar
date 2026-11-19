@@ -1,1 +1,0 @@
-``scan_directory`` takes a time window and a filename glob that leave files out before their headers are read, and ``find_observation_files`` finds an observation's files for scripts.

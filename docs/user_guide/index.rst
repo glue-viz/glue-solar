@@ -10,9 +10,9 @@ analyses through irispy, and AIA and HMI maps beside them. Start with :ref:`Gett
 <glue_solar_users_guide_getting_started>`, or for DKIST data the :ref:`DKIST tutorial
 <glue_solar_users_guide_dkist_tutorial>`.
 
-glue-solar's entries in glue's "Plugins", data and save menus start with "IRIS: " where they take
-IRIS data only. A data action shows only for the data it takes. "glue-solar user guide and issues"
-in the "Plugins" menu opens this guide.
+In a dataset's right-click menu, glue-solar's data actions start with "IRIS: " where they take IRIS
+data only, and each shows only for the data it takes. "glue-solar user guide and issues" in the
+"Plugins" menu opens this guide.
 
 .. toctree::
    :maxdepth: 2

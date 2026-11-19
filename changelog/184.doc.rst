@@ -1,1 +1,0 @@
-The loading guide gives the memory and step times of lazily loaded sit-and-stare rasters.

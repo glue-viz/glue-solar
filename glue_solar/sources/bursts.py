@@ -148,15 +148,11 @@ def _si_iv_bursts(data, crop, threshold, velocity_range, median_factor):
 def si_iv_bursts(data, threshold=None, velocity_range=VELOCITY_RANGE, median_factor=MEDIAN_FACTOR):
     """
     irispy's UV bursts in ``data``, an IRIS raster window of one scan covering Si IV 1402.77 Å or a stack of its
-    scans, by ``find_si_iv_bursts``: a map of their labels on the window's scans, raster steps and slit pixels, and a
-    table of them; a stack's scan by scan, each as that scan alone gives them, at its own coordinates, times and
-    exposure times, its labels numbered on from the previous scan's, as irispy numbers a sequence's rasters, and at
-    the stack's ``DATE_OBS``, its first scan's, which only scales irispy's threshold.
+    scans, by ``find_si_iv_bursts``, as a list of two datasets: a map of their labels on the window's scans, raster
+    steps and slit pixels, and a table of them; a stack's scan by scan, its labels numbered on from the previous
+    scan's. How a burst is found is in :ref:`UV bursts <glue_solar_users_guide_iris_bursts>`.
 
-    irispy is given the window's scaled DN, NaN masked, and only the wavelengths within ``velocity_range`` of the line,
-    and finds a burst pixel where their mean over the step's exposure time reaches ``threshold`` and stays below
-    ``median_factor`` times their median; pixels that touch, diagonally too, are one burst. The map,
-    ``<label> bursts``, has ``label``, 0 outside bursts and 1 to N for the N bursts, and ``meta`` with the
+    The map, ``<label> bursts``, has ``label``, 0 outside bursts and 1 to N for the N bursts, and ``meta`` with the
     observation's ``OBSID`` and ``STARTOBS``, ``bursts_threshold``, irispy's in DN / s per wavelength bin,
     ``bursts_velocity_range`` and ``bursts_median_factor``. The table, ``<label> burst events``, has irispy's columns a
     row a burst: ``label``, ``raster``, the scan, ``npix``, and the ``step``, ``y``, ``time``, ``coordinate.Tx``,
@@ -188,17 +184,17 @@ def si_iv_bursts(data, threshold=None, velocity_range=VELOCITY_RANGE, median_fac
 
 def sji_bursts(data, sigma_factor=SIGMA_FACTOR, min_pixels=MIN_PIXELS):
     """
-    irispy's UV bursts in ``data``, a 1400 Å slit-jaw image, by ``find_bright_image_events``. A cube of their labels
-    on its coordinates, and a table of them.
+    irispy's UV bursts in ``data``, a 1400 Å slit-jaw image, by ``find_bright_image_events``, as a list of two
+    datasets: a cube of their labels on its coordinates, and a table of them. ``sigma_factor`` is the threshold, in
+    standard deviations above a frame's median, and ``min_pixels`` the fewest pixels of a burst; how a burst is found
+    is in :ref:`UV bursts <glue_solar_users_guide_iris_bursts>`.
 
-    irispy is given the scaled values, NaN masked, and finds a burst pixel at ``sigma_factor`` standard deviations
-    above the median of its frame; pixels that touch within a frame, diagonally too, are one burst, and bursts of
-    fewer than ``min_pixels`` are dropped. The cube, ``<label> bursts``, has ``label``, 0 outside bursts and 1 to N for
-    the N bursts, the image's ``Time`` and ``meta``, its per-frame pointing included, so that the time sync and the
-    helioprojective links reach it, and ``bursts_sigma_factor`` and ``bursts_min_pixels``. The table,
-    ``<label> burst events``, has irispy's columns a row a burst: ``label``, ``frame``, ``npix``, the frame's
-    ``threshold``, and the ``y``, ``x``, ``time``, ``coordinate.Tx``, ``coordinate.Ty`` and ``intensity`` of its
-    brightest pixel; and the observation's ``OBSID`` and ``STARTOBS`` and those parameters in ``meta``.
+    The cube, ``<label> bursts``, has ``label``, 0 outside bursts and 1 to N for the N bursts, the image's ``Time``
+    and ``meta``, its per-frame pointing included, so that the time sync and the helioprojective links reach it, and
+    ``bursts_sigma_factor`` and ``bursts_min_pixels``. The table, ``<label> burst events``, has irispy's columns a row
+    a burst: ``label``, ``frame``, ``npix``, the frame's ``threshold``, and the ``y``, ``x``, ``time``,
+    ``coordinate.Tx``, ``coordinate.Ty`` and ``intensity`` of its brightest pixel; and the observation's ``OBSID`` and
+    ``STARTOBS`` and those parameters in ``meta``.
 
     Raises
     ------
@@ -278,8 +274,7 @@ def _found(datasets):
 @messagebox_on_error("Could not detect UV bursts")
 def bursts_iris(data, data_collection):
     """
-    Add the `si_iv_bursts` or `sji_bursts` of ``data`` for the values typed (`_ask`), in the background
-    (`analysis.start`).
+    Add the `si_iv_bursts` or `sji_bursts` of ``data`` for the values typed, in the background.
     """
     sji = _check_bursts(data)  # before asking
     parameters = _ask(data, sji)

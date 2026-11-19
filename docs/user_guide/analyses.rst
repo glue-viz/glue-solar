@@ -4,7 +4,8 @@
 Analyses
 ========
 
-Each analysis is in the right-click menu of a dataset in the data collection. It runs in the
+Each analysis is in the right-click menu of a dataset in the data collection, but for the line fit
+maps, which start on a Profile viewer's "Fit" tab. It runs in the
 background while glue's status bar says so, adds its result as a new dataset, linked with the other
 IRIS data, and opens it in an Image viewer in the current tab, with the quicklook's point. A stack's
 result has a scan slider, each scan's as that scan alone gives it. The result's ``meta`` holds the
@@ -73,9 +74,9 @@ for excess red emission. ``quality`` is irispy's ``RBAQualityFlag``, 0 where com
 sample is saturated. On Mg II and C II, the peak is the brighter of the two about the central
 reversal.
 
-The velocities are on the uncorrected Level 2 wavelength scale, which can be off by 5 to 10 km / s.
-To correct them, set a rest wavelength measured on a line at rest (see "Rest wavelength from a
-measured line" in :ref:`The spectrum panel <glue_solar_users_guide_iris_spectrum_panel>`).
+The velocities are on the uncorrected Level 2 wavelength scale. To correct them, set a rest
+wavelength measured on a line at rest (see "Rest wavelength from a measured line" under
+`Line fit maps`_).
 
 A line moments pixel is NaN where every sample within the velocities is missing, or one there is
 saturated (see :ref:`Missing and saturated samples <glue_solar_users_guide_iris_saturation>`);
@@ -84,10 +85,9 @@ samples out of its spline, and is NaN where ``quality`` is not 0. A Doppler imag
 where either sample it interpolates between is missing or saturated. The status bar counts the
 saturated pixels of the line moments.
 
-In glue's terminal, ``glue_solar.sources.moments.line_moments(data, center, velocity_range,
-continuum, errors)``, ``glue_solar.sources.doppler.doppler_image(data, rest, velocities,
-normalized)`` and ``glue_solar.sources.red_blue.red_blue_asymmetry(data, rest, wavelengths,
-velocities, step)`` make the same datasets, with other settings.
+In glue's terminal, :func:`glue_solar.sources.moments.line_moments`,
+:func:`glue_solar.sources.doppler.doppler_image` and
+:func:`glue_solar.sources.red_blue.red_blue_asymmetry` make the same datasets, with other settings.
 
 .. _glue_solar_users_guide_iris_line_fit_maps:
 
@@ -111,11 +111,8 @@ are both shown at the fit, the fit of the layer listed last, usually the subset,
 linear or polynomial background with a bound or a fixed term needs a fit against a length. Each
 spectrum starts at its own background and line peaks, from irispy's ``starts_from_model``; the
 widths, fixed values, bounds and ties are as fitted. Missing samples are
-left out, and saturated ones, which are only a lower bound. The fit of step 1 leaves a sample out
-where all the pixels it combines are saturated (for a Point, where it is), and notes the wavelengths
-whose mean includes saturated pixels. A full Si IV 1403 raster of 1600 steps, 667,000 spectra over
-±0.6 Å, takes about two minutes on 12 cores and 7 GB of memory: 1.3 GB in glue, which fits a slab of
-steps at a time, and the rest in the worker processes, 4 GB of it their own Python.
+left out, and saturated ones, which are only a lower bound. A full Si IV 1403 raster of 1600 steps,
+667,000 spectra over ±0.6 Å, takes about two minutes on 12 cores and 7 GB of memory.
 
 The result, ``<label> fit <rest>``, holds irispy's ``maps_from_fit`` maps of each line ``i``:
 ``velocity_i`` and ``fwhm_velocity_i`` in km / s, from the rest wavelength, ``fwhm_i`` in Angstrom
@@ -126,6 +123,54 @@ the model. Each map but ``quality`` has ``<map> error``, from the fit's covarian
 
 The fits run in Python processes that import the script that started glue: a script of your own
 that starts glue needs Python's ``if __name__ == "__main__":`` guard.
+
+.. _glue_solar_users_guide_iris_fit_settings:
+
+**Building the model.** "Settings" on the "Fit" tab lists the components of "Gaussian + constant",
+at first a constant background and a Gaussian. Pick a Gaussian, a Lorentzian, or a constant,
+linear or polynomial background (with its degree) and press "Add"; "Remove" drops one. Each parameter
+has a start (blank: from the data), "Fixed", and a lower and an upper bound, either alone. A line's
+parameter can be "Tied to" the same parameter of a line above it: an amplitude or a width is that
+line's times the ratio (blank: the same), a center is that line's plus the separation, in the x unit;
+a tie to a tied line follows it, its separations adding up and its ratios multiplying. For C II
+1334.53 Å and its 1335.66 and 1335.71 Å blend:
+
+1. Add two Gaussians and give ``mean_1`` the start 1334.53.
+2. Tie ``mean_2`` to ``mean_1`` by 1.1305, and ``mean_3`` to ``mean_1`` by 1.1756.
+3. Give each amplitude the lower bound 0, press "OK", drag over 1334.1 to 1336.2 Å and press "Fit".
+
+The fit is drawn over the spectrum in a darker shade of its color, with each line on the background
+dashed; "Clear" removes them. A line without a start begins at one of the most prominent peaks
+(emission peaks only where each such line's amplitude has a lower bound of 0 or more, absorption
+where an upper bound of 0 or less), and each line at its peak among the samples nearer its center
+than any other line's, so give a blend's lines starts or ties. The fit can be made with the x unit
+in Å or ``km / s``, the starts, bounds and separations then in it.
+
+**Saving a model.** "Save…" in Settings writes the components and every start, "Fixed", bound and
+tie to a file, and "Open…" reads one back. Its values are in the x unit it was made in.
+
+**Mg II.** Mg II k and h are each double-peaked. Drag the Fit range over one line's core, about
+±40 km / s, and press "Mg II two peaks" in Settings: two Gaussians on a constant, one for each emission
+peak (k2v and k2r, or h2v and h2r), each starting at its peak. Fit the other line in its own range.
+For the peaks' and line centers' positions without a fit, use "IRIS: Mg II features…".
+
+**Rest wavelength from a measured line.** Level 2 wavelengths can be off by 5 to 10 km / s, and the
+FUV and NUV drift apart. Measure the offset in a quicklook's spectrum panel, on a line nearly at
+rest: O I 1355.5977 Å for the FUV windows (C II, Si IV, O I), or Ni I 2799.474 Å in the Mg II k 2796
+window for the NUV.
+
+1. Tick the window's own layer, hidden at first, in glue's "Plot Layers" list: at the function "Mean", as the
+   panel opens, it is the whole raster's mean spectrum.
+2. On the "Fit" tab, pick "Gaussian + constant" and drag over the line: about 1355.4 to
+   1355.8 Å for O I, or 2799.3 to 2799.65 Å for Ni I. Press "Fit".
+3. Add the offset, the fitted center less the line's rest wavelength, to the rest wavelength of a
+   line on the same detector, and set that with "Set rest wavelength…" on its window.
+
+On OBSID 3824262996, O I fits at 1355.6172 Å (+4.30 km / s), so Si IV 1402.77 Å becomes
+1402.789 Å. A saturated sample is only a lower bound, so the fit leaves a sample out where all the
+pixels it combines are saturated (for a Point, where it is), says how many, and notes the wavelengths
+whose mean includes saturated pixels, biased low (see :ref:`Missing and saturated samples
+<glue_solar_users_guide_iris_saturation>`).
 
 .. _glue_solar_users_guide_iris_rest_wavelength:
 
@@ -180,9 +225,8 @@ few GB, in ``~/.fiasco``, while the status bar says so. Keep ``em`` and ``ip`` o
 path, as in a folder named emily or Temp, or the build finds no ions. If glue quits during the
 build, delete the unfinished ``chianti_dbase.h5`` before the next use.
 
-In glue's terminal, ``glue_solar.sources.line_ratio.line_ratio(numerator, denominator, quantity,
-ratio, name)`` and ``glue_solar.sources.line_ratio.o_iv_density(numerator, denominator,
-log_densities, log_temperature)`` make the same datasets.
+In glue's terminal, :func:`glue_solar.sources.line_ratio.line_ratio` and
+:func:`glue_solar.sources.line_ratio.o_iv_density` make the same datasets.
 
 .. _glue_solar_users_guide_iris_mg_features:
 
@@ -211,8 +255,7 @@ irispy measures k from 2796.351 Å and h from 2803.530 Å. A rest wavelength set
 as Mg II k corrected by a fit of Ni I 2799.474 Å, is taken as k's, and h moves with it. One more
 than 1 Å from 2796.351 Å, such as Mg II h's, is refused: clear it first.
 
-In glue's terminal, ``glue_solar.sources.mg_features.mg_features(data, velocities, lines)`` makes
-the same dataset.
+In glue's terminal, :func:`glue_solar.sources.mg_features.mg_features` makes the same dataset.
 
 .. _glue_solar_users_guide_iris_bursts:
 
@@ -258,6 +301,5 @@ in every frame, and Young et al. (2018) recommend a threshold chosen for each ob
 slit-jaw image with its :ref:`dust removed <glue_solar_users_guide_iris_calibration>` works too. The
 table's coordinates follow :ref:`"IRIS: shift pointing…" <glue_solar_users_guide_iris_pointing>`.
 
-In glue's terminal, ``glue_solar.sources.bursts.si_iv_bursts(data, threshold, velocity_range,
-median_factor)`` and ``glue_solar.sources.bursts.sji_bursts(data, sigma_factor, min_pixels)`` make
-the same datasets.
+In glue's terminal, :func:`glue_solar.sources.bursts.si_iv_bursts` and
+:func:`glue_solar.sources.bursts.sji_bursts` make the same datasets.

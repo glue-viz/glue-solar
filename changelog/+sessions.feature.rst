@@ -1,0 +1,1 @@
+glue sessions keep IRIS, SST and DKIST datasets by reference to their files, with their coordinates, links, colormaps and quicklooks; "Restore last session" in the Plugins menu reopens the session glue last quit with, if under 1 MB.

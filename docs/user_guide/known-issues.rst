@@ -25,8 +25,7 @@ Loading
   autolinker reports an error, although the data load.
 - **Mosaics of many tiles:** linking a DL-NIRSP mosaic's 108 tiles takes about a minute, linking
   its "Mosaic…" image to them about 20 s, and each draw of them all in one Image viewer about 40 s,
-  of a VBI mosaic's 9, as in a ViSP quicklook, about 1.5 s: glue looks for every link again as links
-  are added, and computes each layer over the whole view.
+  of a VBI mosaic's 9, as in a ViSP quicklook, about 1.5 s.
 
 Viewers
 -------
@@ -45,10 +44,6 @@ Viewers
 - **Navigate and Collapse:** keep the Profile viewer's "x unit" at ``Angstrom``, the data's own.
 - **Collapse:** drag over two samples or more, as the last is left out. The collapsed map lasts until
   a slider moves; for a band that follows the slider, use "Wavelength band…".
-- **Keys:** :kbd:`U` and :kbd:`L` act only while the toolbar has the keyboard: click the toolbar
-  first.
-- **Backspace in the data collection** deletes the selected datasets and subsets at once, without
-  undo.
 
 Saving
 ------

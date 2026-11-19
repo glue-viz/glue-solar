@@ -1,1 +1,0 @@
-IRIS and SST quicklooks open their image panels without axes, which makes a step of a several-window quicklook about twice as fast.

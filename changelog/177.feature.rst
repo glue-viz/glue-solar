@@ -1,1 +1,0 @@
-Every sunpy colormap is in glue's colormap menu again; glue-qt's colormap icons are drawn once per colormap and width, so combos build in 0.2 ms.

@@ -1,0 +1,1 @@
+SST CRISP and CHROMIS cubes (SSTRED SOLARNET FITS) open as one dataset, read from the file as it is viewed, with a quicklook of their maps, virtual slit, Stokes spectra and light curve; cubes whose scans overlap in time share one time, and link to each other and to IRIS data on request.

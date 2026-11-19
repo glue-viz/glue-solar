@@ -1,1 +1,0 @@
-Line moments use a raster window's count rate (DN / s) when it has one, and leave -Inf samples out as missing.

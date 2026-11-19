@@ -69,7 +69,7 @@ North up
 A rolled observation (``SAT_ROT``) shows solar north at its roll angle. "IRIS: north up", on a slit-jaw
 image, AIA cutout or SOT cube, adds ``<label> north up``, a grid with latitude up, fixed on the sky,
 and opens an Image viewer of the image on it. glue resamples each frame onto the grid as it
-draws, from the nearest sample, and makes no copy. The image moves across the grid as IRIS follows
+draws, from the nearest sample. The image moves across the grid as IRIS follows
 the solar rotation. The time sync and the point leave the viewer alone, and "Per-frame limits" and
 "Color bar" act on the hidden grid: set the image's limits in its layer's options. "IRIS: shift
 pointing…" shifts the image, not the grid.
@@ -79,7 +79,7 @@ pointing…" shifts the image, not the grid.
 Removing dust
 -------------
 
-"IRIS: remove dust" runs irispy's ``remove_dust`` (``irispy.utils.dust``), after SolarSoft's
+"IRIS: remove dust" runs irispy's ``remove_dust``, after SolarSoft's
 ``iris_dustbuster``: each dust pixel of the IRIS pipeline's bad-pixel table, placed in each frame by
 the slit's position, and those next to it take the median of that pixel over the two frames on
 either side, scaled by their exposure times, or else of the 5 by 5 pixels about it. It adds

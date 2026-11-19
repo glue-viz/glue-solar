@@ -1,1 +1,0 @@
-The Profile viewer's Fit tab offers a "Gaussian + constant" fitter giving the line center and its velocity, and the guide shows how to take the line moments' rest wavelength from a fitted O I or Ni I line.

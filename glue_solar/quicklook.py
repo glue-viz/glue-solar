@@ -125,22 +125,22 @@ class Coordinator(HubListener):
 
     The point is the Pixel tool's selection: the coordinator follows the last subset group given a
     `~glue.viewers.image.pixel_selection_subset_state.PixelSubsetState` on IRIS data, an SST cube, a DKIST dataset of
-    Stokes parameters, repeats or measurements or, in its quicklook, any cube (`_cube_table`), and a quicklook's point
-    group again once it is the edit subset alone, as after picking it as glue's Active Subset. On a spectral cube the
+    Stokes parameters, repeats or measurements or, in its quicklook, any cube, and a quicklook's point group again
+    once it is the edit subset alone, as after picking it as glue's Active Subset. On a spectral cube the
     point is a detector pixel at every wavelength: a click takes the axes the clicked viewer does not show, such as a
     stack's scan or an SST cube's scan and Stokes parameter, from its sliders; outside its quicklook, those of a DKIST
     dataset only.
     A click on a panel that shows wavelength moves the cube's maps to the clicked wavelength instead of fixing it. Every
-    other viewer of the cube, or of another window of its file (`describe.same_file`), then shows the point's
+    other viewer of the cube, or of another window of its file, then shows the point's
     step, exposure, scan and slit, after a drag only its last position, and editing one of those
     sliders moves the point. No other wavelength slider is moved, and a Profile's collapse is left in
     place. A viewer whose sliders glue resets for new data joins the point. A quicklook's point drives
-    only the viewers it `owns`, and shows only on those of its own file's windows; viewers no
+    only the viewers it owns (`own`), and shows only on those of its own file's windows; viewers no
     quicklook owns follow whichever point is followed. A click on a quicklook's slit-jaw image moves
-    its point to the raster there (`_to_raster`). A datetime Scatter plot shows the time master's
-    exposure (`_mark`). Each data collection has one coordinator (`coordinator`), and the
+    its point to the raster there. A datetime Scatter plot shows the time master's
+    exposure. Each data collection has one coordinator (``coordinator(data_collection)``), and the
     ``solar:coordinate`` tool registers every Image viewer with it. It gives the SST cubes their time keys as they come
-    and go (`_share_times`), and a DKIST spectrograph's raster and its context imager theirs, which then follow each
+    and go, and a DKIST spectrograph's raster and its context imager theirs, which then follow each
     other in time as IRIS's raster and slit-jaw images, the imager showing the raster's slit and point.
     """
 
@@ -433,8 +433,8 @@ class Coordinator(HubListener):
 
     def move_master(self, data, index):
         """
-        Move ``data``, the time master of its observation, to ``index`` along its first axis: its frame, exposure,
-        step or scan, on the point if it holds one. The others follow it, as after a move of its slider.
+        Move ``data``, the time master of its observation, to ``index`` along its time axis, else its first: its frame,
+        exposure, step or scan, on the point if it holds one. The others follow it, as after a move of its slider.
         """
         if describe.role(data) == "raster" and data.ndim == 3:
             self._steps[data] = index  # its time without a point, unless a sit-and-stare's exposure slider gives it
@@ -753,7 +753,9 @@ class Coordinator(HubListener):
         return self._slider(data, axis)
 
     def outside_raster(self, viewer):
-        """Whether the last click on the slit-jaw ``viewer`` fell outside the raster, while the point is as it left it."""
+        """
+        Whether the last click on the slit-jaw ``viewer`` fell outside the raster, while the point is as it left it.
+        """
         clicked, point = self._outside
         return clicked is viewer and self.group.subset_state is point
 
@@ -1199,8 +1201,7 @@ class Coordinator(HubListener):
     def slit_on(self, viewer):
         """
         The slit in ``viewer``'s slit-jaw frame, as the x and y pixels of its ends, or None where the frame gives none
-        (-1 or NaN); in a DKIST context image, its raster's at the point's step, or its time's (`_timing`), from its
-        per-step slit table (`_slit_table`, `_SlitPlace`).
+        (-1 or NaN); in a DKIST context image, its raster's at the point's step, or its time's.
         """
         sji, state = viewer.state.reference_data, viewer.state
         if describe.dkist(sji) == "imager":
@@ -1380,18 +1381,14 @@ class QuicklookImageViewer(ImageViewer):
     """
     The quicklook's Image viewer, whose regions on a raster map or a slit-jaw frame reach other data by their outline.
 
-    glue would place a region drawn on a raster map in a linked slit-jaw image by inverting the raster's coordinates
-    at each screen pixel, which takes seconds per frame, and one drawn on a slit-jaw image nowhere else, as time is
-    not linked. Here the region selects the raster's pixels inside it, and on other data, such as each slit-jaw frame
+    A region on a raster map selects the raster's pixels inside it, and on other data, such as each slit-jaw frame
     at its own pointing, what lies inside its outline in helioprojective longitude and latitude. One on a slit-jaw
     image selects its pixels inside it in every frame, as glue's own does, and on other data, such as the raster, what
     lies inside its outline at the pointing of the frame it was drawn on. A region on any other panel is glue's own.
     While a quicklook's point is the edit subset, a region on any panel is a new subset and the point stays the edit
     subset, so the Pixel tool keeps moving it; a region picked to edit takes glue's selection mode.
 
-    The panel takes the Pixel tool whenever it becomes the active window, unless it has another mouse mode on: glue-qt
-    turns a viewer's mouse mode off as another window becomes active, and a click with none would run glue-qt's region
-    selection and empty the edit subset rather than move the point.
+    The panel takes the Pixel tool whenever it becomes the active window, unless it has another mouse mode on.
     """
 
     def __init__(self, *args, **kwargs):
@@ -1742,33 +1739,17 @@ def quicklook(app, datasets, window=None, main=None):
     """
     Open the IRIS quicklook of one observation in a new tab.
 
-    A raster (or a stack of scans) opens as a map, a spectrogram and a wavelength panel (wavelength
-    against step, exposure or scan), each slit-jaw channel in its own viewer, and a spectrum panel
-    showing the mean spectrum of the point. The point starts at the center of the map, in a new
-    subset group 'Point' that is the edit subset while the tab is shown, with the Pixel tool active
-    on the map. A read-only 'Point' window below the panels gives the point's pixel, position, time,
-    exposure, value and time sync in each dataset they show, and the 'Panels' list beside it turns each
-    panel on and off (`_Panels`). The Image panels open without axes, which 'Hide axes' shows on all. Lines on the
-    spectrogram, the wavelength panel and the spectrum panel mark the point, the map's wavelength and
-    the time master's time, and a zoom on the spectrum panel is the wavelength panel's too
-    (`_SpectralLines`). Clicks and keys wait until it is open.
-
-    Of an SST CRISP or CHROMIS cube, or a cube of neither instrument with one wavelength axis and two spatial axes
-    (`describe.cube_axes`), alone in ``datasets``, it opens that cube's quicklook instead (`_cube_table`), one cube to a
-    tab, whose panels follow the point, and an SST cube's the time, as the IRIS quicklook's do. A ViSP or Cryo-NIRSP
-    spectrograph dataset's shows the context imager observed with it too, if loaded, as the slit-jaw images.
-
-    Each other window named in ``window`` gets an unticked box in the Panels list, which adds the spectrum of the point
-    and, on a sit-and-stare raster or a stack, its own wavelength panel (λ–time or λ–scan), to a row below once ticked.
-    Its scan, step or exposure, and slit pixels are linked to the shown window's with
-    `~glue.core.link_helpers.LinkSame` (once, however often the quicklook opens), so the point is the same pixel in
-    every window. Its spectrum panel's 'Show this window's panels' makes it the main window (`_switch`).
+    A lone SST cube in ``datasets``, or other cube of one wavelength axis and two spatial axes, opens that cube's
+    quicklook instead. The pixels of each other window named in ``window`` are linked to the main window's, wavelength
+    aside, with `~glue.core.link_helpers.LinkSame`. Clicks and keys wait until it is open. See
+    :ref:`Quicklook <glue_solar_users_guide_iris_quicklook>` for the panels.
 
     Parameters
     ----------
     app : `~glue_qt.app.GlueApplication`
     datasets : list of `~glue.core.data.Data`
-        IRIS datasets of one observation. Those not yet in the data collection are added and linked.
+        IRIS datasets of one observation, or one cube. Those not yet in the data collection are added, and IRIS data
+        linked.
     window : str or list of str, optional
         The spectral window to show, by its ``TDESC`` name. By default Mg II k 2796, else the first.
         Of several, ``main`` if named, else Mg II k 2796 if named, else the first, and the others of
@@ -1781,7 +1762,8 @@ def quicklook(app, datasets, window=None, main=None):
     dict
         The viewers: ``map``, ``spectrogram``, ``wavelength``, ``spectrum`` (absent without a raster),
         ``sji``, a list, and ``windows``, a list of each other window's ``spectrum`` and any ``wavelength``, joined as
-        the Panels list makes them; of a cube, those `_cube_table` gives.
+        the Panels list makes them; of a cube, ``map``, ``wing`` (SST only), ``slit``, ``imager`` (a DKIST context
+        imager), ``wavelength`` and ``curve`` (with a time axis), ``spectra``, a list, and ``rows``, the panels by row.
 
     Raises
     ------

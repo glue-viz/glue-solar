@@ -1,1 +1,0 @@
-The SST link race test checks for the deadlock, not for speed, so it no longer times out under load.

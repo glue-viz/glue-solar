@@ -1,0 +1,1 @@
+The documentation has a user guide of ten task pages (getting started, a DKIST tutorial, loading data, the quicklook, viewer tools, analyses, data actions, saving, scripting and known issues) and a developer guide (loader customization, the macOS app, manual checks and the register of workarounds).

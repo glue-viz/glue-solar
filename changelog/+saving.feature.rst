@@ -1,0 +1,1 @@
+"Save frames or movie…" saves PNG frames, a GIF or, where ffmpeg is installed, an MP4 along a slider, with times, frame numbers and a scale bar; "Save profiles as ECSV…", "ECSV (with Time)" and "IRIS FITS (coordinates and Time)" export profiles, 1-D data and derived maps.

@@ -1,0 +1,1 @@
+The observation browser, a quicklook and the analyses link an observation's IRIS data, AIA cutouts and SOT cubes by their helioprojective coordinates; "Link helioprojective coordinates" in the Plugins menu links sunpy maps, SST cubes, DKIST datasets and other data to them, or to each other, on request, so regions and points carry between them.

@@ -1,1 +1,0 @@
-'IRIS: remove dust (SJI)' is not offered on a slit-jaw image whose dust is removed already, or on data made from one.
