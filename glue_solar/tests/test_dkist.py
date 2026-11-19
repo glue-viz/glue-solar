@@ -189,7 +189,7 @@ def test_an_image_view_along_the_steps_or_measurements_of_a_context_image_draws(
         viewer = app.new_data_viewer(ImageViewer, data=cryo)
         viewer.state.y_att = cryo.pixel_component_ids[axis]
         viewer.figure.canvas.draw()
-        # and panned past their last, where dkist 1.18.1 gives a NaN time too
+        # and panned past their last, where dkist gives a NaN time too
         viewer.state.y_min, viewer.state.y_max = 3, 10
         viewer.figure.canvas.draw()
     # off them, no longitude or latitude, as dkist gives off its pointing table, and their nearest end's time

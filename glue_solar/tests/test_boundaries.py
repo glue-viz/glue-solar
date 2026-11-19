@@ -52,7 +52,6 @@ ALLOWED = {
     "glue_solar.sources.dkist:glue_solar.sources.loaders.iris:_add_exposure",
     "glue_solar.sources.dkist:glue_solar.sources.loaders.iris:_add_time",
     "glue_solar.sources.dkist:glue_solar.sources.loaders.iris:_axes_of",
-    "glue_solar.sources.dkist:glue_solar.sources.loaders.iris:_off_frames",
     "glue_solar.sources.dkist_actions:glue_solar.glue_patches:_application",
     "glue_solar.sources.dkist_actions:glue_solar.sources.dkist:_ARRIVING",
     "glue_solar.sources.dkist_actions:glue_solar.sources.dkist:_FrameTimes",

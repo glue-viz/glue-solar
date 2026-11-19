@@ -1,0 +1,1 @@
+glue-solar needs astropy 8.0.3, numpy 2.5.5, dkist 1.19.0, echo 0.17.0 and PyQt6 6.12.1, their latest releases, and leaves a time off a dataset's frames to dkist, which now gives no pixel there, where it raised.

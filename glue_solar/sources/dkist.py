@@ -46,7 +46,7 @@ from astropy.wcs.wcsapi import (
     SlicedLowLevelWCS,
 )
 
-from glue_solar.sources.loaders.iris import _HPC, _add_exposure, _add_time, _axes_of, _off_frames, _ScanAt
+from glue_solar.sources.loaders.iris import _HPC, _add_exposure, _add_time, _axes_of, _ScanAt
 from glue_solar.sources.loaders.lazy import allow_open_files, logged_state
 
 __all__ = ["dkist_data", "is_dkist_asdf"]
@@ -129,6 +129,26 @@ def _glue_order(wcs, shape):
             order[max(free, key=lambda p: span[k, p])] = k
     extra = [k for k in range(len(types)) if k not in order.values()]
     return [*extra, *(order.get(p) for p in range(len(shape)))]
+
+
+def _off_frames(wcs, values):
+    """
+    The pixels of world ``values`` through a raveled dataset's ``wcs``, NaN at a time off its frames: there dkist's
+    ``Unravel`` raises ValueError, calling ``int()`` on the NaN its time table gives, where the forward transform gives
+    NaN. Inverted a time at a time, so that a point is one call.
+    """
+    values = np.broadcast_arrays(*(np.asarray(value, float) for value in values))
+    times = values[list(wcs.world_axis_physical_types).index("time")]
+    pixels = [np.full(times.shape, np.nan) for _ in range(wcs.pixel_n_dim)]
+    for when in np.unique(times[np.isfinite(times)]):
+        at = times == when
+        try:
+            found = wcs.world_to_pixel_values(*(value[at] for value in values))
+        except ValueError:
+            continue
+        for pixel, value in zip(pixels, found, strict=True):
+            pixel[at] = value
+    return tuple(pixels)
 
 
 class DKISTWCS(BaseLowLevelWCS, HighLevelWCSMixin):
@@ -216,7 +236,7 @@ class DKISTWCS(BaseLowLevelWCS, HighLevelWCSMixin):
         return world
 
     def _world(self, pixel):
-        # dkist 1.18.1's Ravel gives a NaN time off either end of a raveled axis, where WCSAxes' frame asks, and WCSAxes
+        # dkist's Ravel gives a NaN time off either end of a raveled axis, where WCSAxes' frame asks, and WCSAxes
         # raises for a time range all NaN. Taken there at its nearest end, of that end's time, so WCSAxes finds a time
         # range, and no longitude or latitude, as dkist gives off its pointing table (D103)
         inputs, past = list(pixel), np.zeros(pixel[0].shape, bool)
@@ -240,9 +260,9 @@ class DKISTWCS(BaseLowLevelWCS, HighLevelWCSMixin):
             if k is not None:
                 world[k] = values
         # inverted at finite values only, raveled: NaN pixels where a world value is NaN, as a regridded IRIS dataset's
-        # time in its gaps, where dkist's inverse raises (`_off_frames`); and dkist's Unravel inverse, of a Cryo-NIRSP
-        # context image of repeated measurements, raises TypeError on arrays of more than one dimension (report
-        # candidate)
+        # time in its gaps, where dkist's raveled inverse raises (`_off_frames`); and dkist's Unravel inverse, of a
+        # Cryo-NIRSP context image of repeated measurements, raises TypeError on arrays of more than one dimension
+        # (report candidate)
         world = np.broadcast_arrays(*(np.asarray(values, dtype=float) for values in world))
         finite = np.all(np.isfinite(world), axis=0)
         # the link test (`STRICT_INVERSE`) refusing a NaN world value, as of off-limb data of other dates, which sunpy
@@ -255,9 +275,9 @@ class DKISTWCS(BaseLowLevelWCS, HighLevelWCSMixin):
             try:
                 with self._lock:
                     found = self._wcs.world_to_pixel_values(*inside)
-            # a time off its frames (`_off_frames`): dkist #765, unreleased; and raveled, Unravel's ValueError on its
-            # inverse's NaN time (dkist/wcs/models.py:815, report candidate) (D103)
-            except (NotImplementedError, ValueError):
+            # raveled, a time off its frames (`_off_frames`): Unravel's ValueError on its inverse's NaN time (report
+            # candidate) (D103)
+            except ValueError:
                 if STRICT_INVERSE.get():
                     raise
                 with self._lock:
@@ -781,7 +801,7 @@ def _data(dataset, label):
     if data._present.size == 1:  # one frame, as a VBI single-shot tile's, whose file axis dkist drops (D102)
         data._present = data._present.reshape(())
     # its values read from its files as they are viewed (`_Files`, D103); by dask where it is cut within its files'
-    # frames, as ``dataset[0, :, 400]``, or dkist gives no HDU of its files, of no public API in dkist 1.18.1
+    # frames, as ``dataset[0, :, 400]``, or dkist gives no HDU of its files, of no public API in dkist
     try:
         target = files._fm._striped_external_array.target
     except AttributeError:
@@ -1042,7 +1062,7 @@ def _transfer(parts, folder):
         from dkist.net import conf
         from dkist.net.globus.transfer import _orchestrate_transfer_task as transfer
 
-        source = Path(conf.dataset_path.format(**parts[0][0].files._inventory))  # as dkist 1.18.1's file_manager.py:271
+        source = Path(conf.dataset_path.format(**parts[0][0].files._inventory))  # as dkist's file_manager.py
         inspect.signature(transfer).bind([], recursive=False, destination_path=folder, wait=False)
     except (ImportError, AttributeError, TypeError):
         for dataset, _ in parts:

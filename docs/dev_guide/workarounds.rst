@@ -406,23 +406,19 @@ astropy, WCSLIB, echo, matplotlib and mpl-scatter-density
 dkist
 -----
 
-- **A world-to-pixel through a slit-jaw image's gWCS at a time off its frames gives NaN pixels**: inverted at a time
-  where dkist raises (x86-64), and each pixel inverted with a NaN frame made NaN (ARM) (``_GlueWCS.world_to_pixel_values``,
-  ``_off_frames``, ``_frames``, #342, #353). Switch: dkist raising NotImplementedError (``_off_frames``); always on
-  for the NaN x and y. Retired by dkist #765 (on dkist main since 2026-10-14, after 1.18.1), retiring ``_off_frames``
-  with the release that ships it; dkist's ``sanitize_index`` handling a NaN index (x86-64 casts it to the least
-  int64, ARM to 0; report candidate) retires the NaN x and y.
+- **A world-to-pixel through a slit-jaw image's gWCS at a time off its frames gives NaN pixels on ARM too**: dkist
+  casts the NaN frame index to an int, on x86-64 the least int64, off its table, which it leaves NaN, and on ARM 0,
+  frame 0's x and y with a NaN frame; each pixel inverted with a NaN frame is made NaN
+  (``_GlueWCS.world_to_pixel_values``, ``_frames``, #342, #353). Always on. Retired by dkist's ``sanitize_index``
+  handling a NaN index (report candidate).
 - **dkist's inverse given raveled 1-D values** (``DKISTWCS.world_to_pixel_values``, #378): its ``Unravel`` inverse,
   which a Cryo-NIRSP context image of repeated measurements uses, raises TypeError on arrays of more than one
-  dimension, on 1.18.1 and main alike. Always on (DKIST datasets). Retired by ``Unravel.evaluate`` taking N-d input
-  (report candidate).
-- **A point or image of DKIST data at a time outside another DKIST dataset's frames** raised NotImplementedError
-  (dkist's inverse there is ``Const1D & Const1D``, of no inverse) and, for a raveled dataset, ValueError (``Unravel``
-  calling ``int()`` on a NaN time); ``DKISTWCS.world_to_pixel_values`` gives NaN pixels there by ``_off_frames``,
-  except while the WCS link tests its transforms (``STRICT_INVERSE``), where it also refuses a NaN world value, so
-  data of other times stay unlinked (#379, #385, D103). Switch: dkist raising NotImplementedError or ValueError.
-  Retired by dkist #765 for the NotImplementedError half, the link test then refusing a NaN pixel in its place;
-  ``Unravel`` giving NaN for a NaN index (report candidate).
+  dimension. Always on (DKIST datasets). Retired by ``Unravel.evaluate`` taking N-d input (report candidate).
+- **A point or image of DKIST data at a time outside a raveled DKIST dataset's frames** raised ValueError
+  (``Unravel`` calling ``int()`` on a NaN time); ``DKISTWCS.world_to_pixel_values`` gives NaN pixels there by
+  ``_off_frames``, as dkist gives for a dataset not raveled, except while the WCS link tests its transforms
+  (``STRICT_INVERSE``), where it also refuses a NaN world value, so data of other times stay unlinked (#379, #385,
+  D103). Switch: dkist raising ValueError. Retired by ``Unravel`` giving NaN for a NaN index (report candidate).
 - **DKIST values read by glue-solar, not dkist's dask array** (``DKISTData.get_data``, ``_Files``, ``_section``,
   ``_Open``, #383, #385, D103): only the tiles of each file a view touches decompressed (astropy's ``section``), up
   to 4096 files kept open (``KEPT_OPEN``: half the open-file soft limit, raised by ``lazy.allow_open_files``), closed
