@@ -33,6 +33,7 @@ from matplotlib.backend_bases import KeyEvent, MouseEvent
 from matplotlib.text import Text
 from qtpy import QtWidgets, sip
 from qtpy.QtCore import QEventLoop, QPoint, Qt, QTimer
+from qtpy.QtGui import QFontInfo
 from qtpy.QtTest import QTest
 
 import astropy.units as u
@@ -6145,6 +6146,10 @@ def test_the_panels_have_small_toolbar_icons(bare_app, scans):
 
 
 def test_the_point_window_fits_its_columns(bare_app, qtbot, scans):
+    if not QFontInfo(bare_app.font()).family():
+        # as on Windows, where Qt's offscreen platform finds none: a character then measures a square of the font's
+        # size, twice a letter's width, and the readouts leave the label no width
+        pytest.skip("Qt has no font here, and measures text too wide for the window's readouts")
     bare_app.show()  # the Point window's size
     quicklook(bare_app, [scans[0]])
     window = point_window(bare_app)

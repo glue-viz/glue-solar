@@ -797,7 +797,8 @@ def raster_data(files, windows=None, stack=False):
 def raster_files_data(path, files=(), windows=None, stack=False):
     """
     `raster_data` as the glue data factory a session's load log calls, ``files`` relative to the folder of ``path``,
-    the first, so that a session with relative paths finds them; read once a restore (`_read_logged_windows_together`).
+    the first, so that a session with relative paths finds them, or absolute (`_from_folder`); read once a restore
+    (`_read_logged_windows_together`).
     """
     paths = [Path(path).parent / name for name in files] or [path]
     slots = _RESTORING.get(windows[0]) if len(windows or ()) == 1 else None
@@ -852,6 +853,14 @@ def _read_logged_windows_together(session):
                 record.update({"_type": f"{__name__}.{_RasterFilesLog.__name__}", "read together": windows})
 
 
+def _from_folder(path, folder):
+    """``path`` relative to ``folder``, or absolute where Windows has no path to it, from another drive."""
+    try:
+        return os.path.relpath(path, folder)
+    except ValueError:
+        return os.path.abspath(path)
+
+
 def _raster_windows_data(files, windows=None, stack=False, stop=None, step=None, lazy=True):
     """
     `raster_data` by window name, from one read of each file for every window, which maps each file once; None once
@@ -898,7 +907,7 @@ def _raster_windows_data(files, windows=None, stack=False, stop=None, step=None,
         if step is not None:
             step()
     first = files[0]
-    names = [os.path.relpath(path, Path(first).parent) for path in files]
+    names = [_from_folder(path, Path(first).parent) for path in files]
     result = {}
     for window, cubes in scans.items():  # each with its own log, which a session reads back alone
         datasets = _raster_collection_data({window: cubes}, stack=stack, scaling=scaling)

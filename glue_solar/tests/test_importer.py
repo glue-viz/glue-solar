@@ -5,6 +5,7 @@ import shutil
 import subprocess
 import sys
 import threading
+from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
@@ -60,7 +61,8 @@ def test_tests_keep_off_the_users_settings(tmp_path):
 
     from glue_solar.sources.loaders import iris
 
-    assert os.path.dirname(iris.QSettings("glue-solar", "glue-solar").fileName()) == str(tmp_path)
+    # as paths: Qt writes a file's name with '/' on every system
+    assert Path(iris.QSettings("glue-solar", "glue-solar").fileName()).parent == tmp_path
     assert config.CFG_DIR != os.path.join(os.path.expanduser("~"), ".glue")
 
 

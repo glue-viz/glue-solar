@@ -5,6 +5,7 @@ subtract mean spectrum', as a Profile shows it; the maps exported with their coo
 dialog starts at.
 """
 
+import sys
 from unittest.mock import Mock
 
 import irispy.utils.moments
@@ -519,8 +520,12 @@ def test_lazy_data_give_the_moments_of_data_in_memory(monkeypatch, scan_path, co
     [eager] = raster_data([scan_path], ["Si IV 1403"])
     assert type(eager) is Data
     slabs = line_moments(eager, 1402.77, continuum=continuum)
+    # bit for bit, but on macOS, where irispy's fit of the continuum ends in other digits with the slab's size: to 1e-12
+    # there, the velocity to as much of the wavelength it is the difference of
+    rtol = 1e-12 if sys.platform == "darwin" else 0
     for cid in lazy.main_components:
-        np.testing.assert_array_equal(slabs[cid.label], lazy[cid])
+        atol = rtol * constants.c.to_value(u.km / u.s) if cid.label == "velocity" else 0
+        np.testing.assert_allclose(slabs[cid.label], lazy[cid], rtol=rtol, atol=atol)
 
 
 def test_the_dn_per_second_of_a_window_that_has_it(scan_path):

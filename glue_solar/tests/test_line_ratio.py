@@ -184,13 +184,15 @@ def test_refusals_and_errors_show_why(app, monkeypatch, tmp_path, irispy_test_fi
         answer(monkeypatch, str(path))
         run(app, [maps, partner])
     assert all(text.startswith("Could not map the line ratio\n") for text in shown)
+    with pytest.raises(FileNotFoundError) as error:  # the system's own words, with the path as Python writes it
+        (tmp_path / "none.txt").read_bytes()
     assert [text.split("\n", 1)[1] for text in shown] == [
         "Select two maps on the same grid, such as the line moments of two lines.",
         f"{maps.label} and small are not on the same grid.",
         f"{maps.label} and plain are not on the same grid.",
         f"{maps.label} and shifted are not on the same grid.",
         f"{maps.label}: intensity is in 'DN_IRIS_FUV / s' but counts: intensity in ''.",
-        f"[Errno 2] No such file or directory: '{tmp_path / 'none.txt'}'",
+        str(error.value),
         f"{one_column} is not a table of two columns: the quantity and the theoretical ratio.",
         "theoretical_ratio must be monotonic to map ratios back to a quantity. Restrict the grid to a monotonic "
         "interval first.",

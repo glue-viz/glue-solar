@@ -1,5 +1,7 @@
 """'Save frames or movie…' on an Image viewer: each frame the image at its index, and how a save ends."""
 
+import subprocess
+
 import numpy as np
 import pytest
 from glue.viewers.image.frb_artist import FRBArtist
@@ -87,7 +89,9 @@ def test_a_movie_writer_that_cannot_start_ends_the_save(viewer, qtbot, monkeypat
     missing = tmp_path / "ffmpeg"
     monkeypatch.setitem(rcParams, "animation.ffmpeg_path", str(missing))  # an MP4 typed where ffmpeg is not
     save(monkeypatch, viewer, tmp_path / "sji.mp4")
-    assert shown == [f"Could not save the frames or movie\n[Errno 2] No such file or directory: '{missing}'"]
+    with pytest.raises(FileNotFoundError) as error:  # the system's own words, which on Windows leave out the file
+        subprocess.Popen([str(missing)])
+    assert shown == [f"Could not save the frames or movie\n{error.value}"]
     held = viewer.parent(), viewer.options_widget(), viewer.layer_view()
     assert (saved(), viewer.state.slices, *(widget.isEnabled() for widget in held)) == (True, (20, 0, 0), *[True] * 3)
     assert viewer.figure.canvas.manager is not None

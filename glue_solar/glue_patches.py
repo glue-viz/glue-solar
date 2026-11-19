@@ -28,6 +28,7 @@ from glue.core.component import DaskComponent, DerivedComponent
 from glue.core.component_link import ComponentLink
 from glue.core.coordinate_helpers import unbroadcast
 from glue.core.data_exporters import gridded_fits
+from glue.core.data_factories import LoadLog
 from glue.core.edit_subset_mode import EditSubsetMode
 from glue.core.exceptions import IncompatibleAttribute
 from glue.core.link_helpers import LinkSame, LinkSameWithUnits, MultiLink
@@ -1113,6 +1114,31 @@ def application_gluestate(self, context):
 
 
 GlueApplication.__gluestate__ = application_gluestate
+
+
+_original_load_log_gluestate = LoadLog.__gluestate__
+
+
+def load_log_gluestate(self, context):
+    """
+    glue's ``LoadLog.__gluestate__``, saving the file's absolute path where it has none relative to the session's
+    folder, as Windows has none from one drive to another: glue-core raises ``os.path.relpath``'s ValueError there, so
+    a session with relative paths, the type its Export Session dialog starts with, was not saved. A fault of glue-core
+    to report (report candidate).
+    """
+    if not context.absolute_paths:
+        try:
+            os.path.relpath(self.path)  # from the session's folder, glue's working directory while it saves
+        except ValueError:
+            context.absolute_paths = True  # for this file alone
+            try:
+                return _original_load_log_gluestate(self, context)
+            finally:
+                context.absolute_paths = False
+    return _original_load_log_gluestate(self, context)
+
+
+LoadLog.__gluestate__ = load_log_gluestate
 
 
 _original_logger_write = GlueLogger.write

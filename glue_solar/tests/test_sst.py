@@ -363,6 +363,13 @@ def test_color_limits_of_a_line_are_glue_s_when_15_divides_the_scans(monkeypatch
             np.testing.assert_array_equal(u[axis], views[-1][axis])
 
 
+# where mmap has no madvise, as on Windows, an SST cube leaves every read to numpy: no hints, and no bands either
+with_madvise = pytest.mark.skipif(
+    not hasattr(mmap.mmap, "madvise"), reason="mmap has no madvise here, where an SST cube's reads are numpy's alone"
+)
+
+
+@with_madvise
 @pytest.mark.parametrize("stokes", [1, 4])
 def test_reads_of_the_file_ask_for_every_page_they_read_first(monkeypatch, tmp_path, stokes):
     # a cold file's pages came one fault at a time, 0.36-0.54 s an SST quicklook's scan step on Linux
@@ -415,6 +422,7 @@ def test_reads_of_the_file_ask_for_every_page_they_read_first(monkeypatch, tmp_p
     hints(cube.compute_statistic, "percentile", cid, percentile=50, random_subset=10000)
 
 
+@with_madvise
 @pytest.mark.parametrize("stokes", [1, 4])
 def test_a_dense_view_reads_each_plane_s_band_and_a_sparse_one_the_map_s_pages(monkeypatch, tmp_path, stokes):
     # the full virtual slit of a 13 GB cube took 2.2-3.1 s cold over USB through the map's

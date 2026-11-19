@@ -2057,11 +2057,11 @@ def test_the_key_table_lists_every_key_of_glue_solars_viewers_and_tools(request)
     package = Path(glue_solar.__file__).parent
     for module in package.rglob("*.py"):
         if module.relative_to(package).parts[0] != "tests":
-            keys += re.findall(r"Qt\.Key_(\w+)", module.read_text())
+            keys += re.findall(r"Qt\.Key_(\w+)", module.read_text(encoding="utf-8"))
     guide = request.config.rootpath / "docs" / "user_guide" / "viewer-tools-and-windows.rst"
     if not guide.exists():
         pytest.skip("the package is installed without its docs")
-    table = re.search(r"\.\. list-table:: Keys\n((?:\n| .*\n)*)", guide.read_text())[1]
+    table = re.search(r"\.\. list-table:: Keys\n((?:\n| .*\n)*)", guide.read_text(encoding="utf-8"))[1]
     listed = re.findall(r":kbd:`([^`]+)`", table)
     assert sorted(listed) == sorted({QKeySequence(key).toString() for key in keys})
 

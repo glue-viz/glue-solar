@@ -1,4 +1,5 @@
 import shutil
+import sys
 import threading
 from types import SimpleNamespace
 
@@ -690,9 +691,16 @@ def test_profile_workers_reach_a_linked_map_s_wcs_holding_the_lock(app, qtbot, m
             main = threading.current_thread() is threading.main_thread()
             calls.append((main, frame.f_code.co_name, WCS_LOCK._is_owned()))
 
+    compute = QThreadedProfileLayerArtist._calculate_profile_thread
+
+    def profiled(self, reset=False):  # on its worker, which is not among all threads until Python runs on it
+        sys.setprofile(profile)
+        compute(self, reset=reset)
+
+    monkeypatch.setattr(QThreadedProfileLayerArtist, "_calculate_profile_thread", profiled)
     app.new_data_viewer(ImageViewer, data=aia)
     group = app.data_collection.new_subset_group("region", SubsetState())  # and the workers of its profiles
-    threading.setprofile_all_threads(profile)  # its workers too, waiting for work: a QThread started later is not
+    threading.setprofile_all_threads(profile)  # the GUI thread, and the workers that wait for work
     try:
         roi = RectangularROI(20, 140, 10, 70)
         group.subset_state = RoiSubsetState(aia.pixel_component_ids[1], aia.pixel_component_ids[0], roi)

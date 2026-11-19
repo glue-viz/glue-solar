@@ -30,6 +30,7 @@ from glue_qt.viewers.image import ImageViewer
 from glue_qt.viewers.profile import ProfileViewer
 from matplotlib import colormaps
 from qtpy.QtCore import Qt
+from qtpy.QtGui import QFontInfo
 from qtpy.QtWidgets import QDialog, QFileDialog, QInputDialog, QMessageBox
 
 import astropy.units as u
@@ -58,7 +59,17 @@ from glue_solar.sources.loaders.iris import (
 from glue_solar.sources.loaders.lazy import LazyData
 from glue_solar.sources.maps import read_sunpy_map
 from glue_solar.sources.moments import line_moments, subtract_mean_spectrum
-from glue_solar.tests.helpers import angles, linked_data, load_selected, mouse, restore, scanned, select_point, shift
+from glue_solar.tests.helpers import (
+    angles,
+    linked_data,
+    load_selected,
+    mouse,
+    other_drive,
+    restore,
+    scanned,
+    select_point,
+    shift,
+)
 from glue_solar.tests.test_bursts import SI_IV
 from glue_solar.tests.test_cube_quicklook import spectral_cube
 from glue_solar.tests.test_importer import _row, counted_reads
@@ -287,6 +298,24 @@ def test_a_stack_and_its_restore_keep_the_order_of_its_rasters(tmp_path, irispy_
         assert list(data.meta["raster files"]) == [scan.name for scan in scans]
 
 
+def test_rasters_on_two_drives_stack_and_restore_by_the_whole_path_of_the_second(
+    monkeypatch, tmp_path, irispy_test_files
+):
+    # Windows has no path from one drive to another, where a stack names its files from the first's folder: its load
+    # raised Windows' ValueError
+    scans = sorted(path for path in irispy_test_files if "3860258481_raster" in path.name)[:2]
+    files = []
+    for drive, scan in zip("cd", scans):
+        (tmp_path / drive).mkdir()
+        files.append(shutil.copy(scan, tmp_path / drive))
+    other_drive(monkeypatch, tmp_path / "d")
+    [stack] = raster_data(files, ["C II 1336"], stack=True)
+    assert stack._load_log.kwargs["files"] == [scans[0].name, files[1]]
+    for [data] in twice(DataCollection([stack])):
+        assert list(data.meta["raster files"]) == [scan.name for scan in scans]
+        np.testing.assert_array_equal(data[data.main_components[0]], stack[stack.main_components[0]])
+
+
 def test_a_failed_restore_keeps_no_raster_windows(monkeypatch, tmp_path, irispy_test_files):
     files = sorted(path for path in irispy_test_files if "3860258481_raster" in path.name)
     moved = tmp_path / files[0].name
@@ -418,11 +447,12 @@ def test_a_session_refers_to_the_files_the_browser_loads_and_opens_after_they_mo
     records = json.loads((tmp_path / "first" / "session.glu").read_text())
     logs = [(record["path"], dict(*record["kwargs"])) for record in records.values() if "LoadLog" in record["_type"]]
     files = [f"{stem}_raster_t000_r0000{r}.fits" for r in range(2)]
-    raster = f"data/{MD5}{stem}_raster/{files[0]}"
+    # glue writes each path with the system's separator
+    raster = os.path.join("data", f"{MD5}{stem}_raster", files[0])
     assert sorted(logs, key=str) == sorted(
         [
-            (f"data/{MD5}{stem}_SJI_1400_t000.fits.gz", {}),
-            (f"data/{MD5}{stem}_SDO/{stem.replace('iris', 'aia')}_171.fits", {}),
+            (os.path.join("data", f"{MD5}{stem}_SJI_1400_t000.fits.gz"), {}),
+            (os.path.join("data", f"{MD5}{stem}_SDO", f"{stem.replace('iris', 'aia')}_171.fits"), {}),
             (raster, {"files": files, "windows": ["C II 1336"], "stack": True}),
             (raster, {"files": files, "windows": ["Mg II k 2796"], "stack": True}),
         ],
@@ -438,7 +468,10 @@ def test_a_session_refers_to_the_files_the_browser_loads_and_opens_after_they_mo
     assert not any(record["_type"].endswith("_GlueWCS") for record in records.values())
     meta = [records[data.label]["meta"]["contents"] for data in dialog.datasets]
     assert meta == [{"st__rest_wavelength": 2796.35}, {}, {}, {}]
-    (tmp_path / "first").rename(tmp_path / "moved")
+    try:
+        (tmp_path / "first").rename(tmp_path / "moved")
+    except PermissionError:  # Windows moves no folder whose files are in use, as the datasets' are: a copy in its place
+        shutil.copytree(tmp_path / "first", tmp_path / "moved")
     restored = restore(qtbot, monkeypatch, tmp_path / "moved" / "session.glu")
     for data, expected in zip(restored.data_collection, dialog.datasets, strict=True):
         assert data.label == expected.label
@@ -458,6 +491,27 @@ def test_a_session_refers_to_the_files_the_browser_loads_and_opens_after_they_mo
     # and a session saved from the restored one refers to them alike
     restored.save_session(str(tmp_path / "moved" / "again.glu"), absolute_paths=False)
     assert json.loads((tmp_path / "moved" / "again.glu").read_text()).keys() == records.keys()
+
+
+def test_a_session_with_relative_paths_refers_by_its_whole_path_to_a_file_on_another_drive(
+    app, qtbot, monkeypatch, tmp_path, irispy_test_files
+):
+    # Windows has no path from one drive to another: glue raised its ValueError, and saved no session
+    paths = []
+    for drive, name in (("c", SJI), ("d", SNS.format("SJI_1400_t000"))):
+        (tmp_path / drive).mkdir()
+        paths.append(shutil.copy(find_irispy_test_file(irispy_test_files, name), tmp_path / drive))
+    datasets = [image_data(path) for path in paths]
+    app.data_collection.extend(datasets)
+    other_drive(monkeypatch, tmp_path / "d")
+    app.save_session(str(tmp_path / "c" / "session.glu"), absolute_paths=False)
+    records = json.loads((tmp_path / "c" / "session.glu").read_text())
+    logs = {record["path"] for record in records.values() if "LoadLog" in record["_type"]}
+    assert logs == {os.path.basename(paths[0]), paths[1]}  # the file beside the session still by its name
+    restored = restore(qtbot, monkeypatch, tmp_path / "c" / "session.glu")
+    for data, expected in zip(restored.data_collection, datasets, strict=True):
+        assert data.label == expected.label
+        np.testing.assert_array_equal(data[data.main_components[0]], expected[expected.main_components[0]])
 
 
 def test_a_quicklook_session_stays_small_and_opens(app, qtbot, monkeypatch, tmp_path, iris_tree):
@@ -682,6 +736,10 @@ def test_a_restored_quicklook_neither_asks_about_nor_profiles_a_cube_hidden_on_i
 
 
 def test_two_restored_quicklooks_are_laid_out_as_they_were(app, qtbot, monkeypatch, tmp_path, irispy_test_files):
+    if not QFontInfo(app.font()).family():
+        # as on Windows, where Qt's offscreen platform finds none: the Point window's readouts then overflow it, and
+        # the restored one came out 14 px taller than the one saved
+        pytest.skip("Qt has no font here, and the Point window's height follows its text")
     files = [find_irispy_test_file(irispy_test_files, SNS.format(name)) for name in SNS_FILES[:2]]
     app.resize(1800, 1100)  # over the 1200×560 the panels take at least
     app.show()
@@ -699,7 +757,11 @@ def test_two_restored_quicklooks_are_laid_out_as_they_were(app, qtbot, monkeypat
 
     for tab in (1, 2):  # the first laid out only as it is shown
         expected = layout(app, tab)
-        qtbot.waitUntil(lambda: layout(restored, tab) == expected)
+
+        def as_saved(tab=tab, expected=expected):  # an assertion, so that a wait that ends shows what differs
+            assert layout(restored, tab) == expected
+
+        qtbot.waitUntil(as_saved)
 
 
 def test_a_restored_quicklook_marks_its_master_exposure_again(app, qtbot, monkeypatch, tmp_path, irispy_test_files):

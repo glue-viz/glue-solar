@@ -219,7 +219,7 @@ def test_a_stack_reads_only_the_scans_it_selects(int16_raster):
 
 @pytest.mark.parametrize(("soft", "hard", "raised"), [(256, 10**6, 10240), (256, 1000, 1000), (20000, 10**6, None)])
 def test_open_file_limit_is_raised_never_lowered(monkeypatch, soft, hard, raised):
-    import resource
+    resource = pytest.importorskip("resource", reason="Python has no resource module here, nor a limit to raise")
 
     calls = []
     monkeypatch.setattr(resource, "getrlimit", lambda kind: (soft, hard))
@@ -229,7 +229,7 @@ def test_open_file_limit_is_raised_never_lowered(monkeypatch, soft, hard, raised
 
 
 def test_open_file_limit_refused_is_asked_for_lower(monkeypatch):
-    import resource
+    resource = pytest.importorskip("resource", reason="Python has no resource module here, nor a limit to raise")
 
     def refuse(kind, limits):  # as macOS does above its kern.maxfilesperproc
         calls.append(limits[0])
