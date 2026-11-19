@@ -5,9 +5,7 @@ Viewer tools
 ============
 
 glue's `getting started guide <http://docs.glueviz.org/en/stable/getting_started/index.html>`__
-describes its viewers and tools, such as "Home" (:kbd:`H`), "Pan" (:kbd:`M`), "Zoom" (:kbd:`Z`) and
-the region tools "Rectangular ROI" (:kbd:`R`), "X range" (:kbd:`X`), "Y range" (:kbd:`Y`), "Circular
-ROI" (:kbd:`C`) and "Polygonal ROI" (:kbd:`G`). A button's tooltip gives its key.
+describes its own viewers and tools. A button's tooltip gives its key.
 
 glue-solar adds a button and three menus to each Image viewer's toolbar, after "Zoom": "Follow/lock",
 the pencil (mouse modes), the link icon (the Coordinate menu) and the gear (the View menu). A menu
@@ -28,12 +26,11 @@ Image viewer
      - Click or drag to move the point (see :ref:`Quicklook <glue_solar_users_guide_iris_quicklook>`).
      -
    * - "Follow/lock"
-     - The point follows the mouse, as CRISPEX's cursor does; a left click locks it, a right click
-       unlocks it.
+     - The point follows the mouse; a left click locks it, a right click unlocks it.
      - Esc
    * - Pencil → "Measure"
-     - Drag a line: the status bar gives its length in pixels, arcsec and km, in the plane of the sky;
-       data without ``DSUN_OBS``, such as SST cubes, take Earth's distance from the Sun.
+     - Drag a line: the status bar gives its length in pixels, arcsec and km, in the plane of the sky.
+       Data without ``DSUN_OBS``, such as SST cubes, take Earth's distance from the Sun.
      - U
    * - Pencil → "Path diagram"
      - Click a path and press Enter for the data along it (see `Path diagrams`_).
@@ -44,8 +41,8 @@ Image viewer
      -
    * - Pencil → "Slope"
      - In a diagram of frames or exposures against the path, click points along a track and press
-       Enter: the speed in km / s, and the acceleration from three times, as a row of the diagram's
-       table.
+       Enter. The diagram's table gets a row with the speed in km / s, and the acceleration from
+       three times.
      - Enter, Esc
    * - Pencil → "Save path as ECSV…", "Open path from ECSV…", "Path from points…", "Path on other data…"
      - Save, reopen, type and reuse a path (see `Path diagrams`_).
@@ -134,10 +131,10 @@ Profile viewer
        plotted wavelength range.
    * - "Lines in this range…"
      - List the lines of irispy's line catalog in the Fit or Collapse range, else in the plotted
-       range, strongest first for the quiet Sun, an active region or a flare at coronal or
-       photospheric abundances, and those with no predicted strength last, or on DKIST data and
-       SST cubes the ground-based lines. Tick a line to mark it, untick one to hide it, a main line
-       too.
+       range. They come strongest first for the quiet Sun, an active region or a flare, at coronal
+       or photospheric abundances, and those with no predicted strength last. DKIST data and SST
+       cubes list the ground-based lines. Tick a line to mark it, untick one to hide it, a main
+       line too.
    * - "Velocity axis"
      - Add a top axis of :ref:`Doppler velocity <glue_solar_users_guide_iris_velocity>` from the
        window's rest wavelength.
@@ -150,10 +147,10 @@ Profile viewer
 Path diagrams
 -------------
 
-Choose "Path diagram" (:kbd:`L`), glue-solar's path tool in place of glue's "Slice Extraction", click
-the path's vertices on the image and press :kbd:`Enter`; :kbd:`Esc` clears the path. Each dataset
-shown gets a new dataset of its values along the path, each sample the value of the nearest pixel,
-and the image's opens in a new viewer with the path along x:
+Choose "Path diagram" (:kbd:`L`), which takes the place of glue's "Slice Extraction". Click the
+path's vertices on the image and press :kbd:`Enter`; :kbd:`Esc` clears the path. Each dataset shown
+gets a new dataset of its values along the path, each sample the value of the nearest pixel. The
+image's opens in a new viewer with the path along x:
 
 - a slit-jaw image gives its frames against the path, a distance-time diagram;
 - a raster window gives its wavelengths against the path;
@@ -174,12 +171,9 @@ closes its diagrams.
 Windows and keys
 ----------------
 
-Each viewer is a window in the tab. The "Canvas" menu has "New Data Viewer" (Ctrl+N), "New Tab"
-(Ctrl+T), "Gather Windows" (Ctrl+G), which places the tab's viewers side by side, and "Rename Tab"
-(Ctrl+R); on macOS these use Cmd. Backspace closes the active Image, Scatter or Histogram viewer
-after asking. In the data collection, Backspace deletes the selected datasets and subsets at once,
-without undo, and Ctrl+I (Cmd+I on macOS) shows the selected dataset's FITS header (see
-:ref:`glue_solar_users_guide_iris_fits_header`).
+Backspace closes the active Image, Scatter or Histogram viewer after asking. In the data collection,
+Backspace deletes the selected datasets and subsets at once, without undo. There, Ctrl+I (Cmd+I on
+macOS) shows the selected dataset's FITS header (see :ref:`glue_solar_users_guide_iris_fits_header`).
 
 D, F, A, S and Space act on the viewer last clicked, unless you are typing in a box or the data
 collection has the keyboard. The others act in the image, toolbar or browser last clicked.
@@ -197,15 +191,15 @@ collection has the keyboard. The others act in the image, toolbar or browser las
    * - :kbd:`A`, :kbd:`S`
      - A wavelength back and on: the viewer's own wavelength slider, and in a quicklook the map's.
    * - :kbd:`Space`
-     - Plays the time, as the leading dataset's slider does, along its loop if "Loop…" gave it one;
-       pressed again, pauses. With no dataset leading, plays the viewer's slider of the data's first
-       axis.
+     - Plays the time, as the leading dataset's slider does, along its loop if "Loop…" gave it one.
+       Pressed again, it pauses. With no dataset leading, it plays the viewer's slider of the data's
+       first axis.
    * - :kbd:`U`, :kbd:`L`
      - "Measure" and "Path diagram", while the toolbar has the keyboard: click the toolbar first,
        such as its handle at the left end.
    * - :kbd:`Enter`, :kbd:`Return`
      - In "Path diagram", makes the diagrams of the path drawn; in "Slope", adds the speed to the
-       diagram's table. In the observation browser, presses "Load selected", but in a text field.
+       diagram's table. In the observation browser, presses "Load selected", except in a text field.
    * - :kbd:`Esc`
      - In "Path diagram", clears the path; in "Slope", the points; in "Follow/lock", unlocks the
        point.

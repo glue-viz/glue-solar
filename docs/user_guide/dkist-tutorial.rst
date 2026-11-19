@@ -10,7 +10,7 @@ to IRIS data, stitch the mosaic into one image and save the session. The example
 
 1. Download both from the DKIST Data Center with the `dkist
    <https://docs.dkist.nso.edu/projects/python-tools/en/stable/>`__ package. Each dataset is an ASDF
-   file and its FITS files, which dkist transfers with Globus: run `Globus Connect Personal
+   file and its FITS files. dkist transfers them with Globus: run `Globus Connect Personal
    <https://www.globus.org/globus-connect-personal>`__, and log in to Globus when asked::
 
        from dkist.net import transfer_complete_datasets
@@ -18,20 +18,20 @@ to IRIS data, stitch the mosaic into one image and save the session. The example
        transfer_complete_datasets(["TXIPCV", "LOQEPP"], path="~/dkist")
 
    Each lands in its own folder, ``~/dkist/TXIPCV`` (4.3 GB) and ``~/dkist/LOQEPP`` (6.4 GB). To
-   find other datasets, search the `archive <https://dkist.data.nso.edu/>`__, or sunpy's ``Fido`` as
-   dkist's guide shows.
+   find other datasets, search the `archive <https://dkist.data.nso.edu/>`__.
 2. Start glue, choose "File → Open Data Set" and pick the two ASDF files,
    ``VISP_L1_20240424T203833_TXIPCV_metadata.asdf`` and
    ``VBI_L1_20240424T203852_LOQEPP_metadata.asdf``. They load as ``VISP TXIPCV`` and the 9 tiles
    ``VBI LOQEPP (0, 0)`` to ``VBI LOQEPP (2, 2)``; the values stay in the files.
 3. Press "Apply" in glue's "Link Suggestions": its 9 links join the raster and the other tiles to
    the center tile, ``VBI LOQEPP (1, 1)``.
-4. Right-click ``VISP TXIPCV`` in the data collection and choose "Quicklook…". The tab
-   "VISP TXIPCV" shows the map, the virtual slit, the VBI mosaic at its frame nearest the point's
-   step with the raster's slit and the point, and the spectra of Stokes I, Q, U and V at the point.
-5. Click the map to move the point: the virtual slit, the VBI panel and the spectra follow. Each
-   spectrum marks Ca II at 854.209 nm, in air as the dataset's ``WAVEREF`` says, and Q, U and V span
-   ±5, ±5 and ±10 times their noise level, shaded about 0.
+4. Right-click ``VISP TXIPCV`` in the data collection and choose "Quicklook…". After some seconds,
+   the tab "VISP TXIPCV" shows the map, the virtual slit, the VBI mosaic and the spectra of Stokes
+   I, Q, U and V at the point. The VBI mosaic is at its frame nearest the point's step, with the
+   raster's slit and the point drawn on it.
+5. Click the map to move the point: the virtual slit, the VBI panel and the spectra follow within
+   seconds. Each spectrum marks Ca II at 854.209 nm, in air as the dataset's ``WAVEREF`` says. Q, U
+   and V span ±5, ±5 and ±10 times their noise level, shaded about 0.
 
 .. image:: images/dkist-quicklook.png
    :width: 800
@@ -50,19 +50,20 @@ Point window gives the point in the raster and in the tile under it.
    the "Plugins" menu: a point on the IRIS data reaches the raster at the step whose slit passes
    nearest it, and a point on the raster reaches the IRIS data in the frame nearest its step's time.
 8. Click "Tab 1", as the image opens in the current tab, right-click a VBI tile and choose
-   "Mosaic…". The tiles, at the VBI panel's frame, are stitched into one image north up,
-   ``VBI LOQEPP mosaic 2024-04-24T20:52:57``, 11275 by 11018 pixels, opened at 99.5 % limits and
-   linked to the tiles and IRIS data, so the point shows on it.
+   "Mosaic…". It takes tens of seconds, and the status bar says "Reprojecting the tiles of VBI
+   LOQEPP…" meanwhile. The tiles, at the VBI panel's frame, are stitched into one image north up,
+   ``VBI LOQEPP mosaic 2024-04-24T20:52:57``. It opens at 99.5 % limits, linked to the tiles and
+   IRIS data, so the point shows on it.
 
 .. image:: images/dkist-mosaic.png
    :width: 800
    :alt: The mosaic of VBI LOQEPP's 9 tiles at one frame, north up, in an Image viewer, with the
          point's crosshair
 
-9. Choose "File → Export Session". It refers to the ASDF and FITS files, but holds the mosaic's
-   values, 0.66 GB: remove the mosaic first for a session under 1 MB, which glue-solar also keeps as
-   the last session as glue quits. "File → Open Session" opens the quicklook again with its point
-   and VBI panel.
+9. Choose "File → Export Session". The session refers to the ASDF and FITS files, but holds the
+   mosaic's values, which make it large. Remove the mosaic first for a session under 1 MB, which
+   glue-solar also keeps as the last session as glue quits. "File → Open Session" opens the
+   quicklook again with its point and VBI panel, after some seconds.
 
 For more on each step, see :ref:`DKIST datasets <glue_solar_users_guide_loading_dkist_datasets>`,
 :ref:`Quicklook <glue_solar_users_guide_iris_quicklook>` and :ref:`Sessions

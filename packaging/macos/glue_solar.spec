@@ -1,6 +1,6 @@
 # PyInstaller spec of Glue Solar.app: glue with glue-solar, irispy and sunpy on PyQt6, for macOS. It and hooks/, which
 # adds what PyInstaller misses, are adapted from glue-viz/glue-standalone-apps' glue_app.spec and hooks (4e35d18), used
-# with the glue team's permission; build_app.sh builds it (docs/dev_guide/macos-app.rst).
+# with the glue team's permission; build_app.sh builds it (MACOS_APP.rst on the plan branch).
 import importlib.metadata
 import os
 import sys

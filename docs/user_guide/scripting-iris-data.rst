@@ -24,9 +24,9 @@ browser does::
 Pass ``stack=True`` to ``raster_data`` to stack the scans of each window.
 
 ``find_observation_files`` finds the files of the observations below a folder that run between a
-start and an end, the same time for the observation running then, and ``pattern`` picks among their
-names. ``scan_directory`` takes ``start``, ``end`` and ``pattern`` by keyword and gives the
-observations, as the browser lists them::
+start and an end. Give the same time twice for the observation running then, and a ``pattern`` to
+pick among their names. ``scan_directory`` takes ``start``, ``end`` and ``pattern`` by keyword and
+gives the observations, as the browser lists them::
 
     from glue_solar.sources.loaders.scan import find_observation_files
 
@@ -37,9 +37,9 @@ Linking
 -------
 
 Data added in the terminal are not linked. ``link_hpc`` gives the helioprojective links the browser
-makes between the IRIS data and the aligned AIA cutouts and SOT cubes of their observation, and to the
-datasets named in ``others``, such as a map or an SST cube, leaving out links already made.
-``others=data_collection`` links every dataset, as "Link helioprojective coordinates" does::
+makes between the IRIS data and the aligned AIA cutouts and SOT cubes of their observation. It also
+links the datasets named in ``others``, such as a map or an SST cube, and leaves out links already
+made. ``others=data_collection`` links every dataset, as "Link helioprojective coordinates" does::
 
     from glue_solar.sources.loaders.iris import link_hpc
 
@@ -61,7 +61,7 @@ Coordinates and times
 
 A raster is indexed ``[step, slit, wavelength]``, a stack ``[scan, step, slit, wavelength]`` and a
 slit-jaw image ``[frame, y, x]``. ``coords.pixel_to_world_values`` takes the pixel indices in the
-opposite order, fastest axis first, and gives the world values in that order: for a raster, the
+opposite order, fastest axis first. It gives the world values in that order: for a raster, the
 wavelength in Angstrom, then the helioprojective latitude and longitude in arcsec. The Image viewer's
 readout shows the same values. On a sit-and-stare raster such as this one, the map (step against
 slit) reads only the angle that changes along the slit, here the latitude (the longitude on a slit

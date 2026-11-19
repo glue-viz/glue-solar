@@ -15,13 +15,14 @@ The `user guide <https://glue-solar.readthedocs.io/en/latest/>`__ starts with an
 Installation
 ------------
 
-As this plugin is still in development, you can only install it from this repository::
+glue-solar needs Python 3.13 or later and Git. It has no release yet, so it installs from this repository. In a new
+environment::
 
-    $ git clone https://github.com/glue-viz/glue-solar.git
-    $ cd glue-solar
-    $ pip install -e .
+    pip install git+https://github.com/glue-viz/glue-solar.git
 
-This installs glue and PyQt6 (glue-solar needs Qt 6), and registers the plugin with glue.
+This downloads glue and everything else it needs. The `documentation
+<https://glue-solar.readthedocs.io/en/latest/>`__ has every step, from installing Python, for Windows, macOS and
+Linux.
 
 Using
 -----
