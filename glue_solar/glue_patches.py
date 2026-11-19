@@ -54,6 +54,7 @@ from glue.viewers.scatter import layer_artist as scatter_layer_artist
 from glue.viewers.scatter import viewer as scatter_viewer
 from glue.viewers.table.state import TableViewerState
 from glue_qt.app import GlueApplication
+from glue_qt.app.application import GlueLogger
 from glue_qt.app.layer_tree_widget import LayerAction, UserAction
 from glue_qt.config import LayerActionRegistry
 from glue_qt.config import layer_action as glue_layer_action
@@ -1112,6 +1113,34 @@ def application_gluestate(self, context):
 
 
 GlueApplication.__gluestate__ = application_gluestate
+
+
+_original_logger_write = GlueLogger.write
+
+
+class _Writes(QtCore.QObject):
+    """The signal of a write to glue-qt's log off the GUI thread, which Qt queues to this object's thread."""
+
+    queued = QtCore.Signal(object, object)  # the log and the message
+
+
+_writes = _Writes()  # on the GUI thread, where glue imports its plugins
+_writes.queued.connect(_original_logger_write)
+
+
+def logger_write(self, message):
+    """
+    glue-qt's ``GlueLogger.write``, made on the GUI thread whichever thread writes: the log is ``sys.stderr``, where
+    irispy warns while the observation browser reads files on a worker thread, and glue-qt 0.4.2 edits its QTextEdit
+    on the thread that writes, which Qt allows on the GUI thread only.
+    """
+    if QtCore.QThread.currentThread() is _writes.thread():
+        _original_logger_write(self, message)
+    else:
+        _writes.queued.emit(self, message)
+
+
+GlueLogger.write = logger_write
 
 
 _original_canvas_init = MplCanvas.__init__

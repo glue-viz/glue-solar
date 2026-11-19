@@ -2,8 +2,13 @@
 
 import inspect
 import re
+import sys
 
 import pytest
+from glue_qt.app.application import GlueLogger
+from glue_qt.utils.threading import Worker
+from qtpy import QtWidgets
+from qtpy.QtCore import QThread
 
 from glue_solar import glue_patches
 
@@ -40,6 +45,21 @@ def test_the_register_and_glue_patches_name_the_same_probes(request):
         pytest.skip("the package is installed without its docs")
     probes = re.findall(r"^def (needs_\w+)\(", inspect.getsource(glue_patches), re.MULTILINE)
     assert set(re.findall(r"\bneeds_\w+", register.read_text())) == set(probes)
+
+
+def test_a_write_to_glue_qt_s_log_off_the_gui_thread_is_made_on_it(qtbot, monkeypatch):
+    # the log is sys.stderr, where irispy warns as the observation browser reads on a worker thread: glue-qt 0.4.2
+    # edits the log's QTextEdit on the thread that writes, and Qt allows that on the GUI thread only
+    gui, button, edits = QThread.currentThread(), QtWidgets.QToolButton(), []
+    log = GlueLogger(button_console=button)  # sys.stderr from here until it closes, with the test
+    qtbot.addWidget(log)
+    monkeypatch.setattr(log._text, "insertPlainText", lambda message: edits.append((message, QThread.currentThread())))
+    worker = Worker(sys.stderr.write, "from a worker")  # glue-qt's, as the browser's
+    worker.start()
+    qtbot.waitUntil(lambda: bool(edits))
+    worker.wait()
+    sys.stderr.write("from the GUI thread")  # at once
+    assert edits == [("from a worker", gui), ("from the GUI thread", gui)]
 
 
 def test_the_slider_patch_installs_where_glue_qt_reads_an_array_axis_for_a_world_axis(qapp):

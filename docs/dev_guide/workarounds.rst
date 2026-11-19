@@ -288,6 +288,11 @@ glue-qt
   the same turn, where glue-qt lists them and glue cannot restore such an Image viewer (``GlueApplication.__gluestate__``,
   ``glue_patches.application_gluestate``, #364). Always on. Retired by glue-qt's ``GlueApplication.viewers`` or
   ``__gluestate__`` leaving closed viewers out (report candidate).
+- **A write to glue's console log from another thread made on the GUI thread** (``GlueLogger.write``,
+  ``glue_patches.logger_write``): the log is ``sys.stderr`` and edits its QTextEdit on the thread that writes, as
+  irispy's warnings do while the observation browser reads files on a worker thread, which Qt allows on the GUI
+  thread only. Always on. Retired by glue-qt's ``GlueLogger.write`` handing a write off the GUI thread to it (report
+  candidate).
 - **The Slope table's Table viewers reset after new rows** (``SlopeTool``, ``tools.py``, #175). Always on. Retired by
   glue-qt's Table viewer showing and sorting rows added to its dataset (report candidate).
 - **A Table viewer of data with a time searches each value as the text the table shows**
