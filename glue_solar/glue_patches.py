@@ -35,6 +35,7 @@ from glue.core.link_manager import pixel_cid_to_pixel_cid_matrix
 from glue.core.state import GlueSerializeError, GlueSerializer, GlueUnSerializer, loader, saver
 from glue.core.subset import SubsetState
 from glue.dialogs.link_editor.state import LinkEditorState
+from glue.logger import logger
 from glue.plugins.tools.path_slicer.path_sliced_data import PathSlicedData
 from glue.plugins.tools.path_slicer.path_sliced_data_links import PathRelativeLink
 from glue.plugins.wcs_autolinking.wcs_autolinking import IncompatibleWCS, WCSLink
@@ -89,11 +90,13 @@ from glue_solar.sources.loaders.iris import WCS_LOCK, _HeldWCS, _LockedWCS
 def _needs(probe):
     """
     ``probe()``, or True where it raises, as on a glue change it did not foresee: the patch installs rather than the
-    import failing, which glue logs at info level only, without glue-solar (D82).
+    import failing, which glue logs at info level only, without glue-solar (D82), and a warning names the probe and
+    its error.
     """
     try:
         return probe()
-    except Exception:  # noqa: BLE001 - any failure installs the patch
+    except Exception as error:  # noqa: BLE001 - any failure installs the patch
+        logger.warning(f"glue-solar's probe {probe.__name__} raised {error!r}, which counts as finding its bug")
         return True
 
 

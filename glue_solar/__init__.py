@@ -30,24 +30,29 @@ if not qtpy.QT6:
     logger.error(message)  # glue logs a plugin that fails to load only at info level, which it does not show
     raise RuntimeError(message)
 
-from glue_solar import glue_patches, lines, regrid, tools
-from glue_solar.quicklook import QuicklookImageViewer
-from glue_solar.sources import (
-    bursts,
-    calibration,
-    dkist,
-    dkist_actions,
-    doppler,
-    fit_maps,
-    iris,
-    line_ratio,
-    maps,
-    mg_features,
-    moments,
-    red_blue,
-    sst,
-)
-from glue_solar.sources.maps import _add_colormap
+try:
+    from glue_solar import glue_patches, lines, regrid, tools
+    from glue_solar.quicklook import QuicklookImageViewer
+    from glue_solar.sources import (
+        bursts,
+        calibration,
+        dkist,
+        dkist_actions,
+        doppler,
+        fit_maps,
+        iris,
+        line_ratio,
+        maps,
+        mg_features,
+        moments,
+        red_blue,
+        sst,
+    )
+    from glue_solar.sources.maps import _add_colormap
+except Exception as error:
+    # as above: glue would open without glue-solar and say nothing, as once it renames a private name these import
+    logger.error(f"glue-solar could not be imported: {error!r}")
+    raise
 
 from glue_solar.version import version as __version__
 

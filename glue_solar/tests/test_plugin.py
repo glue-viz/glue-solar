@@ -334,6 +334,26 @@ def test_import_refuses_qt_5_before_anything_registers():
     assert re.search(r"glue-solar needs Qt 6 \(PyQt6\), not PyQt5 .* set QT_API=pyqt6", result.stderr)
 
 
+_RENAMED_IMPORT = """
+import glue.core.state
+
+del glue.core.state._save_component  # a private name glue-solar imports, as in a glue that renames it
+try:
+    import glue_solar
+except ImportError:
+    print("raised")
+"""
+
+
+def test_import_logs_an_error_where_glue_lacks_a_name_it_imports():
+    # in a process of its own, as glue_solar is imported here
+    env = {**os.environ, "PYTHONPATH": os.pathsep.join(sys.path)}
+    result = subprocess.run([sys.executable, "-c", _RENAMED_IMPORT], env=env, capture_output=True, text=True)
+    assert result.stdout == "raised\n", result.stderr[-2000:]
+    # glue logs a plugin that fails to load only at info level, which it does not show
+    assert re.search(r"glue-solar could not be imported: ImportError\(.*_save_component", result.stderr)
+
+
 _PLUGIN_LOAD = """
 import sys
 

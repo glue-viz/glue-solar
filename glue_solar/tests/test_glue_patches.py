@@ -8,14 +8,29 @@ import pytest
 from glue_solar import glue_patches
 
 
-def test_a_probe_that_raises_installs_its_patch():
+def test_a_probe_that_raises_installs_its_patch(caplog):
     def probe():
         raise AttributeError("a glue internal the probe drives is gone")
 
     assert glue_patches._needs(probe) is True
+    # with a warning that names the probe and its error, not without a word
+    [record] = caplog.records
+    assert record.levelname == "WARNING"
+    assert "probe probe raised AttributeError('a glue internal the probe drives is gone')" in record.getMessage()
     assert glue_patches._needs(lambda: False) is False
     # every patch asks its probe through `_needs`
     assert not re.findall(r"(?<!def )\bneeds_\w+_workaround\(\)", inspect.getsource(glue_patches))
+
+
+def test_no_probe_raises_on_the_installed_versions(qapp):
+    # one that did would install its patch whatever glue, glue-qt and astropy now do
+    raised = {}
+    for name in re.findall(r"^def (needs_\w+)\(", inspect.getsource(glue_patches), re.MULTILINE):
+        try:
+            getattr(glue_patches, name)()
+        except Exception as error:  # noqa: BLE001 - each probe's, named below
+            raised[name] = error
+    assert not raised
 
 
 def test_the_register_and_glue_patches_name_the_same_probes(request):
