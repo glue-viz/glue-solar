@@ -36,8 +36,6 @@ Start glue from a terminal::
 
 On Windows, installation creates ``glue.exe`` in the Python script directory (e.g., ``C:\Python313\Scripts``), for which you can create a desktop shortcut.
 
-On a Mac, glue-solar can also be built into an app, ``Glue Solar.app``, which opens from the Finder, the Dock or Launchpad: see :ref:`glue_solar_dev_docs_macos_app`.
-
 .. toctree::
    :maxdepth: 2
 

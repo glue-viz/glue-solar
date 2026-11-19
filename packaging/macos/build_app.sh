@@ -1,6 +1,6 @@
 #!/bin/bash
 # Build Glue Solar.app and Glue Solar.dmg, which holds it beside a link to /Applications, in dist/ beside this script,
-# with the active environment's PyInstaller (docs/dev_guide/macos-app.rst)
+# with the active environment's PyInstaller (MACOS_APP.rst on the plan branch)
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 rm -rf "$here/build" "$here/dist"
