@@ -251,7 +251,9 @@ def scan_directory(root, recursive=True, skipped=None, stop=None, report=None, s
     headers = []
     # not hidden ones, such as the folder `extract_archive` unpacks into before it renames it
     visible = (p for p in paths if not any(part.startswith(".") for part in p.relative_to(root).parts))
-    files = sorted(p for p in visible if _wanted(strip_pooch(p.name), pattern, earliest, end) and p.is_file())
+    wanted = (p for p in visible if _wanted(strip_pooch(p.name), pattern, earliest, end) and p.is_file())
+    # by the names as written, capitals first, on every system: Windows' paths themselves sort without regard to case
+    files = sorted(wanted, key=lambda p: p.parts)
     for n, path in enumerate(files):
         report(100 * n // len(files))
         if stop.is_set():

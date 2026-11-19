@@ -91,6 +91,26 @@ def test_stop_ends_the_scan_while_it_lists_the_files(iris_tree, monkeypatch):
     assert len(listed) == 1  # and the rest of the tree is not walked
 
 
+def test_files_are_read_in_one_order_on_every_system(iris_tree, monkeypatch):
+    # a Stop lists what the scan read so far: a WindowsPath sorts without regard to case, the folder '…_raster' before
+    # '…_SDO' and '…_SJI_1400…', so its rasters were read before the slit-jaw image that Linux and macOS read first
+    class Caseless(type(iris_tree)):
+        def __lt__(self, other):
+            return [part.lower() for part in self.parts] < [part.lower() for part in other.parts]
+
+    reads, read = [], scan._primary_header
+    monkeypatch.setattr(scan, "_primary_header", lambda path: reads.append(path.name) or read(path))
+    monkeypatch.setattr(scan, "Path", Caseless)
+    scan_directory(iris_tree)
+    stem = "iris_l2_{}_{}_{}".format(*OBS_A)
+    assert [name for name in reads if stem.removeprefix("iris_l2_") in name] == [
+        f"{stem.replace('iris', 'aia')}_171.fits",
+        f"{MD5}{stem}_SJI_1400_t000.fits.gz",
+        f"{stem}_raster_t000_r00000.fits",
+        f"{stem}_raster_t000_r00001.fits",
+    ]
+
+
 def test_report_reaches_100_only_once_every_file_is_read(iris_tree):
     reports, stop = [], threading.Event()
     scan_directory(iris_tree, report=reports.append)
