@@ -83,7 +83,7 @@ def iris_image_layer(viewer, data):
 
     glue's default paints NaN opaque in the colormap's "bad" color, black for the IRIS
     colormaps, so gaps and off-detector areas look like dark data, and each tile of a DKIST mosaic
-    painted the tiles beneath it black around its own.
+    paints the tiles beneath it black around its own.
     """
     ours = "OBSID" in getattr(data, "meta", {}) or isinstance(data, DKISTData)
     if not isinstance(viewer, MatplotlibImageMixin) or not ours:
@@ -228,10 +228,10 @@ def _check_iris(data):
 def shift_pointing_iris(data, data_collection):
     """
     Add a typed offset, in arcsec, to the helioprojective longitude and latitude of ``data``, or of the furthest
-    dataset it is made from still loaded (`_source`), which the dialog names, of the other windows of its raster file
-    and of the data made from any of them that follow it (`_GlueWCS.follow`), a burst events table's coordinates too,
-    in place of any before (0, 0 removes it), and place everything in every viewer, the readouts, links and a
-    quicklook's point and raster overlays again; offered only for data with IRIS coordinates, not a north-up grid.
+    dataset it is made from still loaded, which the dialog names, of the other windows of its raster file and of the
+    data made from any of them that follow it, a burst events table's coordinates too, in place of any before (0, 0
+    removes it), and place everything in every viewer, the readouts, links and a quicklook's point and raster overlays
+    again; offered only for data with IRIS coordinates, not a north-up grid.
     """
     _check_iris(data)
     chosen, data = data, _source(data, data_collection)
@@ -257,11 +257,11 @@ def shift_pointing_iris(data, data_collection):
 def export_iris_fits(filename, data, components=None):
     """
     Write ``data``, a 2-D map on helioprojective coordinates, such as line moments, or a subset of one, as glue's
-    "FITS (1 component/HDU)" does, each image with the map's coordinates as a FITS-TAB WCS: every pixel's longitude
-    and latitude as glue gives them, in degrees, in a ``WCS-TABLE`` extension, and the frame's observer and time. A
-    ``Time`` component is a ``TIME`` image of the same pixels, every pixel of a subset too, in seconds since its
-    ``DATEREF``, UTC, NaN where missing; ``OBSID`` and ``STARTOBS`` go in every component's header. glue shows why for
-    other data.
+    "FITS (1 component/HDU)" does, only ``components`` if given, each image with the map's coordinates as a FITS-TAB
+    WCS: every pixel's longitude and latitude as glue gives them, in degrees, in a ``WCS-TABLE`` extension, and the
+    frame's observer and time. A ``Time`` component is a ``TIME`` image of the same pixels, every pixel of a subset
+    too, in seconds since its ``DATEREF``, UTC, NaN where missing; ``OBSID`` and ``STARTOBS`` go in every component's
+    header. glue shows why for other data.
     """
     maps = data.data if isinstance(data, Subset) else data
     coords = maps.coords
@@ -297,9 +297,9 @@ def export_iris_fits(filename, data, components=None):
 def export_ecsv(filename, data, components=None):
     """
     Write ``data``, 1-D data such as the light curves at a point, or a subset of it, as an ECSV table: glue's table of
-    its attributes, as glue's "Comma-separated table" writes it, with each attribute's unit, a datetime attribute such
-    as ``Time`` as UTC times to the nanosecond, which astropy reads back as `~astropy.time.Time`, and ``OBSID`` and
-    ``STARTOBS`` in its meta. glue shows why for other data.
+    its attributes, only ``components`` if given, as glue's "Comma-separated table" writes it, with each attribute's
+    unit, a datetime attribute such as ``Time`` as UTC times to the nanosecond, which astropy reads back as
+    `~astropy.time.Time`, and ``OBSID`` and ``STARTOBS`` in its meta. glue shows why for other data.
     """
     whole = data.data if isinstance(data, Subset) else data
     if whole.ndim != 1:

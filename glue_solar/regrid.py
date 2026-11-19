@@ -299,11 +299,12 @@ def _rebinned(data, view, values, bins, operation=_nanmean):
 
 def rebin(data, bins):
     """
-    ``data``, an IRIS dataset, binned by ``bins`` pixels along each axis, as a new dataset ``<label> rebinned <bins>``.
+    ``data``, an IRIS dataset, binned by ``bins``, the pixels in a bin along each axis, as a new dataset
+    ``<label> rebinned <bins>``.
 
     Each pixel is the nanmean of the values in its bin, by ndcube's ``NDCube.rebin``, NaN where every one is missing,
-    in float32 in memory; ``data`` is read a slab at a time, a stack a bin of scans at a time, and pixels past its last
-    whole bin along an axis are left out. Its coordinates are ndcube's ``ResampledLowLevelWCS`` of those of ``data``,
+    in float32 in memory; pixels past its last whole bin along an axis are left out.
+    Its coordinates are ndcube's ``ResampledLowLevelWCS`` of those of ``data``,
     so a pixel is at its bin's center; its ``Time`` is the mean of its bin's times, and its ``Exposure time`` the mean
     of its bin's exposure times, NaN where one is 0 s, so that ``<label> DN / s`` is its mean DN over it. The units,
     colormap, pointing offset, which it follows, and metadata are those of ``data``, without a slit-jaw image's
@@ -313,8 +314,7 @@ def rebin(data, bins):
     Raises
     ------
     ValueError
-        For other data than an IRIS dataset, or ``bins`` that are not a whole number of pixels from 1 to the length
-        of each axis.
+        For other data than an IRIS dataset, or ``bins`` that are not one number for each axis, from 1 to its length.
     """
     from ndcube.wcs.wrappers import ResampledLowLevelWCS
 
@@ -388,7 +388,7 @@ def _ask(data):
 )
 @messagebox_on_error("Could not rebin")
 def rebin_iris(data, data_collection):
-    """Add ``data`` binned by the pixels typed for each axis (`rebin`), in the background (`analysis.start`)."""
+    """Add ``data`` binned by the pixels typed for each axis (`rebin`), in the background."""
     _check(data)  # before asking
     bins = _ask(data)
     if bins is not None:

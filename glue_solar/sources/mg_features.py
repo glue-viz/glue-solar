@@ -121,19 +121,16 @@ def mg_features(data, velocities=VELOCITIES, lines=LINES):
     stack of its scans, within ``velocities`` of each line's rest wavelength, as one dataset on the window's scans,
     raster steps and slit pixels, each scan's as that scan alone gives them, at its own coordinates.
 
-    irispy is given the window's ``<label> DN / s`` where it has one, else its values, a slab of steps of one scan at a
-    time, and only the wavelengths it searches; it skips a line the window does not cover over ``velocities``. For
-    each line, ``k`` (2796.35 Å) and ``h`` (2803.53 Å), its components are irispy's: ``k2v``, ``k3`` and ``k2r``
-    (``h2v``, ``h3``, ``h2r``), the blue peak, line center and red peak, each as ``<feature>_velocity`` in km / s and
-    ``<feature>_intensity`` in the window's unit; NaN where irispy finds none, or a sample it searches for the line is
-    missing or saturated, as the window's mask marks the Level 2 ceiling, 16182 DN, where ``k saturated``
-    (``h saturated``), irispy's ``k_saturated`` (``h_saturated``), is 1, else 0. With a rest wavelength set for
-    ``data`` with 'Set rest wavelength…', irispy is given its wavelengths shorter by the rest wavelength less
-    irispy's k, as irispy advises for IDL's ``wave_comp``: k's velocities are then from the rest wavelength, and h's
-    from irispy's h as far off. ``meta`` holds the observation's ``OBSID`` and ``STARTOBS``,
-    ``mg_features_velocities`` and ``mg_features_lines``, those measured, with a rest wavelength set
-    ``mg_features_rest_wavelength``, and with saturated pixels ``mg_features_saturated``, how many of each line's,
-    over every scan.
+    irispy is given the window's ``<label> DN / s`` where it has one, else its values; it skips a line the window does
+    not cover over ``velocities``. For each line, ``k`` (2796.35 Å) and ``h`` (2803.53 Å), its components are irispy's:
+    ``k2v``, ``k3`` and ``k2r`` (``h2v``, ``h3``, ``h2r``), the blue peak, line center and red peak, each as
+    ``<feature>_velocity`` in km / s and ``<feature>_intensity`` in the window's unit; NaN where irispy finds none, or
+    a sample it searches for the line is missing or saturated, as the window's mask marks the Level 2 ceiling, 16182
+    DN, where ``k saturated`` (``h saturated``), irispy's ``k_saturated`` (``h_saturated``), is 1, else 0. With a rest
+    wavelength set for ``data`` with 'Set rest wavelength…', k's velocities are from it, and h's from irispy's h as far
+    off. ``meta`` holds the observation's ``OBSID`` and ``STARTOBS``, ``mg_features_velocities`` and
+    ``mg_features_lines``, those measured, with a rest wavelength set ``mg_features_rest_wavelength``, and with
+    saturated pixels ``mg_features_saturated``, how many of each line's, over every scan.
 
     Parameters
     ----------
@@ -198,7 +195,7 @@ def _saturated(features):
 @messagebox_on_error("Could not compute Mg II features")
 def mg_features_iris(data, data_collection):
     """
-    Add the `mg_features` of ``data`` for the values typed (`_ask`), computed in the background (`analysis.start`).
+    Add the `mg_features` of ``data`` for the values typed, computed in the background.
     """
     analysis.check(data)  # before asking
     rest = _rest(data)

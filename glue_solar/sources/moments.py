@@ -114,14 +114,13 @@ def line_moments(data, center, velocity_range=VELOCITY_RANGE, continuum=None, er
     could be fitted, or a sample there is saturated. ``meta`` holds the observation's ``OBSID`` and
     ``STARTOBS``, ``moments_center`` and ``moments_velocity_range``, with a continuum ``moments_continuum`` and
     ``moments_continuum_degree``, the degree of the background, and with saturated pixels ``moments_saturated``, how
-    many. irispy is given only the wavelengths from the first to the last within the velocity range or a continuum
-    window, a slab of steps of one scan at a time, in one call.
+    many.
 
-    With ``errors``, each map ``<name>`` has ``<name> error``, irispy's standard deviation of it, in its unit, propagated
-    to first order from that of each sample its reader gives with ``uncertainty=True``: the photon and read noise of
-    its DN, over the step's exposure time for DN / s, taken as independent (a background's error is left out). irispy
-    leaves it NaN where it is undefined: the intensity's where no sample is left, the centroid's and the velocity's
-    where fewer than two are, and the widths' where the width is 0.
+    With ``errors``, each map ``<name>`` has ``<name> error``, irispy's standard deviation of it, in its unit,
+    propagated to first order from that of each sample its reader gives with ``uncertainty=True``: the photon and read
+    noise of its DN, over the step's exposure time for DN / s, taken as independent (a background's error is left
+    out). irispy leaves it NaN where it is undefined: the intensity's where no sample is left, the centroid's and the
+    velocity's where fewer than two are, and the widths' where the width is 0.
 
     Parameters
     ----------
@@ -142,7 +141,8 @@ def line_moments(data, center, velocity_range=VELOCITY_RANGE, continuum=None, er
     ------
     ValueError
         For other data than an IRIS raster window or stack, a velocity range that does not increase or has no
-        wavelength of the window, or a continuum window with none or overlapping the velocity range.
+        wavelength of the window, a continuum window with none or overlapping the velocity range, or ``errors`` of
+        rebinned data, as irispy would give each bin the noise of one sample.
     """
     window = analysis.window(data, *_ends(center, velocity_range), continuum)
     return _moments(data, center, velocity_range, continuum, *window, errors)
@@ -294,10 +294,9 @@ def _saturated(moments):
 @messagebox_on_error("Could not compute line maps")
 def line_maps_iris(data, data_collection):
     """
-    Add the maps of ``data`` ticked (`_ask`): its `line_moments` for the values typed, and its
+    Add the maps of ``data`` ticked: its `line_moments` for the values typed, and its
     `~glue_solar.sources.doppler.doppler_image` and `~glue_solar.sources.red_blue.red_blue_asymmetry` at their defaults:
-    each checked before any is computed, then computed in turn in the background
-    (`~glue_solar.sources.analysis.start`), so the memory peak is one map's.
+    each checked before any is computed, then computed in turn in the background.
     """
     analysis.check(data)  # before asking
     asked = _ask(data, _profile_range(data, data_collection))
@@ -367,7 +366,6 @@ def subtract_mean_spectrum(data):
     Add ``<label> mean spectrum`` to ``data``, an IRIS raster window or a stack of its scans: the mean of its values at
     each wavelength over every raster step or exposure, slit pixel and scan, missing and saturated samples left out,
     NaN where every sample is; and ``<label> minus mean spectrum``, the values less it, a glue derived component.
-    The mean is computed once, a slab of steps at a time, and held as one spectrum.
 
     Returns
     -------
@@ -404,7 +402,7 @@ def _left_out(data, mean):
 @messagebox_on_error("Could not subtract the mean spectrum")
 def mean_spectrum_iris(data, data_collection):
     """
-    Add the `subtract_mean_spectrum` components to ``data``, the mean computed in the background (`analysis.start`).
+    Add the `subtract_mean_spectrum` components to ``data``, the mean computed in the background.
     """
     _check_mean(data)
     cid = data.main_components[0]

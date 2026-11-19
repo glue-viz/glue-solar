@@ -57,10 +57,9 @@ def remove_dust(data):
     coordinates, at its pointing offset, which it follows, with its ``Time``, ``Exposure time``, ``<label> DN / s``
     and ``meta``, ``meta['dust_removed']`` added, which data made from it keep.
 
-    irispy's ``remove_dust`` is given the scaled values, NaN and saturated ones masked, a slab of frames at a
-    time with the `FRAMES` on either side it takes replacements from, each frame's exposure time and slit position, and
-    the file's metadata. It takes the dust from the IRIS pipeline's bad-pixel table of the channel, placed in each
-    frame by its slit position, and the pixels about it, and puts in the median of those pixels over the frames on
+    irispy's ``remove_dust`` is given the scaled values, NaN and saturated ones masked, with each frame's exposure time
+    and slit position. It takes the dust from the IRIS pipeline's bad-pixel table of the channel, placed in each
+    frame by its slit position, and the pixels about it, and puts in the median of those pixels over the 2 frames on
     either side, scaled by the exposure times, else of the 5 by 5 pixels about it; dust it cannot replace is NaN, and
     saturated samples keep their value unless they neighbour dust, which irispy replaces like any neighbour. The values
     are float32, as the loader's.
@@ -122,7 +121,7 @@ def remove_dust(data):
 )
 @messagebox_on_error("Could not remove dust")
 def remove_dust_iris(data, data_collection):
-    """Add ``data`` with its dust removed (`remove_dust`), in the background (`analysis.start`)."""
+    """Add ``data`` with its dust removed (`remove_dust`), in the background."""
     _check_sji(data)
     analysis.start(data_collection, f"Removing dust from {data.label}…", "Could not remove dust", remove_dust, data)
 
@@ -159,17 +158,17 @@ def _check_radiance(data):
 def radiometric_calibration(data):
     """
     Add ``<label> radiance per DN / s`` to ``data``, an IRIS raster window of one scan or a stack of its scans,
-    rebinned by 'IRIS: rebin…' or not: irispy's factor from DN / s to radiance at each of its wavelengths, held as one
-    spectrum; and ``<label> radiance``, its ``<label> DN / s`` times it, a glue derived component, in irispy's
-    ``RADIANCE_UNIT``, erg / (Angstrom s sr cm2).
+    rebinned by 'IRIS: rebin…' or not: irispy's factor from DN / s to radiance at each of its wavelengths; and
+    ``<label> radiance``, its ``<label> DN / s`` times it, a glue derived component, in irispy's ``RADIANCE_UNIT``,
+    erg / (Angstrom s sr cm2).
 
     The factor is irispy's ``radiometric_calibration``'s: ``calculate_dn_to_radiance_factor`` of the window's
     wavelengths, detector, spectral dispersion and pixel solid angle, with the effective area of irispy's latest
     response at its ``DATE_OBS``; a stack's with the first scan's spectral dispersion and solid angle, which every
     scan's pixel sizes, CDELT1-3, must equal, and at the stack's ``DATE_OBS``, its first scan's, which only picks the
     response; NaN at wavelengths the response does not cover. A bin of rebinned data is the mean of the window's
-    pixels, so the factor takes their spectral dispersion and solid angle, from the window's WCS beneath the rebinned
-    one, and the effective area at the bin's wavelength, its pixels' mean.
+    pixels, so the factor takes their spectral dispersion and solid angle, and the effective area at the bin's
+    wavelength, its pixels' mean.
 
     Returns
     -------

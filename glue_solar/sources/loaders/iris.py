@@ -1,7 +1,7 @@
 """
-IRIS Level 2 rasters and slit-jaw images as glue datasets: their coordinates in arcsec and Å behind one lock
-(`_GlueWCS`, `WCS_LOCK`), the readers (`raster_data`, `image_data`), the links of datasets by their helioprojective
-coordinates (`link_hpc`) and the observation browser (`QtIRISImporter`).
+IRIS Level 2 rasters and slit-jaw images as glue datasets: their coordinates in arcsec and Å, the readers
+(`raster_data`, `image_data`), the links of datasets by their helioprojective coordinates (`link_hpc`) and the
+observation browser (`QtIRISImporter`).
 """
 
 import base64
@@ -785,9 +785,9 @@ def raster_data(files, windows=None, stack=False):
     """
     Load the spectral ``windows``, by ``TDESC`` name (all if None), of ``files``, raster files of one observation: a
     `~glue.core.data.Data` per scan and window, or with ``stack`` per window of two or more scans, stacked without
-    resampling along a leading ``Scan`` axis, each scan at its own coordinates (`stack_wcs`) and times. int16 windows
-    load lazily (`LAZY`), and a session reads them from their files again (`raster_files_data`). Warns of rasters that
-    take several exposures at each position (``NEXP_PRP``), as world to pixel gives the first.
+    resampling along a leading ``Scan`` axis, each scan at its own coordinates and times. int16 windows load lazily
+    (`LAZY`), and a session reads them from their files again. Warns of rasters that take several exposures at each
+    position (``NEXP_PRP``), as world to pixel gives the first.
     """
     datasets = [data for datasets in _raster_windows_data(files, windows, stack).values() for data in datasets]
     _warn_repeated_positions(datasets)
@@ -941,13 +941,11 @@ def link_hpc(data_collection, others=()):
     The links, for the caller to add, of the helioprojective longitude and latitude of every IRIS dataset and of
     those of ``others`` to the first IRIS dataset's, else, with no IRIS data, to the first of ``others``, by
     physical type, in arcsec (`LinkSame`) or converted (`LinkSameWithUnits`), and of each stack's scan and each SST
-    cube's time to the frames of the others, and of each SST cube's time to the other SST cubes' scans (`_ScanAt`),
-    skipping pairs linked already; see the loading guide's Linking. Each links to the first, not to every other: glue
-    rediscovers every link at each change, 0.3 s for the 70 links of 36 datasets but 4 s for every pair's 1260. The
-    plain WCS of each other dataset linked, which IRIS data's profile workers then call, goes behind `WCS_LOCK` in place
-    (`_LockedWCS`); each SST cube's ``meta['IRIS observation']`` names the IRIS observation timed nearest it, if linked.
-    A DKIST dataset's time and the IRIS data's are linked at the nearest frames, and a DKIST raster's step and slit
-    pixel to the IRIS data's longitude and latitude (`_SlitAt`).
+    cube's time to the frames of the others, and of each SST cube's time to the other SST cubes' scans, skipping pairs
+    linked already; see the loading guide's Linking. The plain WCS of each other dataset linked goes behind
+    ``WCS_LOCK`` in place; each SST cube's ``meta['IRIS observation']`` names the IRIS observation timed nearest it, if
+    linked. A DKIST dataset's time and the IRIS data's are linked at the nearest frames, and a DKIST raster's step and
+    slit pixel to the IRIS data's longitude and latitude.
     """
     from glue_solar import describe  # which imports this module
     from glue_solar.sources.dkist import (  # which imports this module
@@ -1347,10 +1345,11 @@ def _window_time(text, end=False):
 
 class QtIRISImporter(QtWidgets.QDialog):
     """
-    The observation browser (see the loading guide), which scans a folder and loads the selection on glue-qt's worker
-    thread. After ``exec()`` returns ``Accepted``, ``datasets`` holds the loaded data, ``first_image`` the first SJI or
-    AIA cube and ``loaded`` each ticked entry's ``(observation, kind, name, datasets)``. ``shown(loaded, quicklooks,
-    main)``, if given, names the datasets the first viewers will show, whose color limits are counted there too.
+    The observation browser (see the loading guide), which scans a folder, ``directory`` at first, and loads the
+    selection in the background. After ``exec()`` returns ``Accepted``, ``datasets`` holds the loaded data,
+    ``first_image`` the first dataset that is not a raster window, or None, and ``loaded`` each ticked entry's
+    ``(observation, kind, name, datasets)``. ``shown(loaded, quicklooks, main)``, if given, names the datasets the
+    first viewers will show, whose color limits are counted in the background too.
     """
 
     def __init__(self, directory=None, parent=None, shown=None):

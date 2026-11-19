@@ -1,10 +1,6 @@
 """
-The main lines, a Profile viewer button that labels them, the rest wavelength of a spectral window and the
-Doppler velocity from it, as a Profile x unit and top axis.
-
-The main lines are the documented IRIS lines of irispy's line catalog, at its vacuum wavelengths in Angstrom, and
-on DKIST data and SST cubes the lines ground-based telescopes observe, in air or vacuum as their wavelengths are
-(`GROUND_LINES`, `lines_of`).
+The main lines (`lines_of`), a Profile viewer button that labels them, the rest wavelength of a spectral window and
+the Doppler velocity from it, as a Profile x unit and top axis.
 """
 
 import os
@@ -47,7 +43,7 @@ _NAMES = {2796.352: "Mg II k", 2803.53: "Mg II h"}  # irispy names both "Mg II"
 
 @cache
 def main_lines():
-    """irispy's documented IRIS lines, as (name, wavelength in Angstrom), read at first use rather than at launch."""
+    """irispy's documented IRIS lines, as (name, vacuum wavelength in Angstrom)."""
     from irispy.utils.lines import get_lines
 
     lines = get_lines(main_only=True)
@@ -117,7 +113,7 @@ class LineTool(Tool):
     """
     Label the main lines (`lines_of`) on a Profile viewer whose x axis is the wavelength of its data: a thin
     marker at each line within the plotted range and its name at the top, in the axis's display unit, less the main
-    lines unticked in 'Lines in this range…' (`hidden`) and with the lines ticked there (`labeled`). Lines too
+    lines unticked in 'Lines in this range…' (``hidden``) and with the lines ticked there (``labeled``). Lines too
     close to tell apart at the plotted range share one label; a label that would overlap another goes below it. The
     button, checked while they show, switches them off and on; they start on.
     """
@@ -377,8 +373,7 @@ class VelocityTool(Tool, HubListener):
     whose x axis is the wavelength of data with a `rest_wavelength`, in a length unit. It follows the x range and unit
     and glue's x label and tick sizes. 'Set rest wavelength…' moves it and, in every Profile viewer of the data,
     offers 'km / s' or not and redraws the profiles in it. The button, checked while it is on and grayed without a rest
-    wavelength, switches the axis off and on; it starts off. It also gives glue's axes their units (`_label_x`,
-    `_unit_y`).
+    wavelength, switches the axis off and on; it starts off. It also gives glue's axes their units.
     """
 
     #: :meta hide-value:
@@ -529,7 +524,9 @@ def _check_wavelength(data):
 )
 @messagebox_on_error("Could not set the rest wavelength")
 def rest_wavelength_iris(data, data_collection):
-    """Set ``meta['rest_wavelength']`` of ``data`` to a main line picked or a wavelength typed, or remove it for none."""
+    """
+    Set ``meta['rest_wavelength']`` of ``data`` to a main line picked or a wavelength typed, or remove it for none.
+    """
     _check_wavelength(data)
     choices = {f"{name} {wave}": wave for name, wave in _within(data)}
     rest = rest_wavelength(data)

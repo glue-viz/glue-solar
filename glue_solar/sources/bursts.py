@@ -148,10 +148,10 @@ def _si_iv_bursts(data, crop, threshold, velocity_range, median_factor):
 def si_iv_bursts(data, threshold=None, velocity_range=VELOCITY_RANGE, median_factor=MEDIAN_FACTOR):
     """
     irispy's UV bursts in ``data``, an IRIS raster window of one scan covering Si IV 1402.77 Å or a stack of its
-    scans, by ``find_si_iv_bursts``: a map of their labels on the window's scans, raster steps and slit pixels, and a
-    table of them; a stack's scan by scan, each as that scan alone gives them, at its own coordinates, times and
-    exposure times, its labels numbered on from the previous scan's, as irispy numbers a sequence's rasters, and at
-    the stack's ``DATE_OBS``, its first scan's, which only scales irispy's threshold.
+    scans, by ``find_si_iv_bursts``, as a list of two datasets: a map of their labels on the window's scans, raster
+    steps and slit pixels, and a table of them; a stack's scan by scan, each as that scan alone gives them, at its own
+    coordinates, times and exposure times, its labels numbered on from the previous scan's, as irispy numbers a
+    sequence's rasters, and at the stack's ``DATE_OBS``, its first scan's, which only scales irispy's threshold.
 
     irispy is given the window's scaled DN, NaN masked, and only the wavelengths within ``velocity_range`` of the line,
     and finds a burst pixel where their mean over the step's exposure time reaches ``threshold`` and stays below
@@ -188,8 +188,8 @@ def si_iv_bursts(data, threshold=None, velocity_range=VELOCITY_RANGE, median_fac
 
 def sji_bursts(data, sigma_factor=SIGMA_FACTOR, min_pixels=MIN_PIXELS):
     """
-    irispy's UV bursts in ``data``, a 1400 Å slit-jaw image, by ``find_bright_image_events``. A cube of their labels
-    on its coordinates, and a table of them.
+    irispy's UV bursts in ``data``, a 1400 Å slit-jaw image, by ``find_bright_image_events``, as a list of two
+    datasets: a cube of their labels on its coordinates, and a table of them.
 
     irispy is given the scaled values, NaN masked, and finds a burst pixel at ``sigma_factor`` standard deviations
     above the median of its frame; pixels that touch within a frame, diagonally too, are one burst, and bursts of
@@ -278,8 +278,7 @@ def _found(datasets):
 @messagebox_on_error("Could not detect UV bursts")
 def bursts_iris(data, data_collection):
     """
-    Add the `si_iv_bursts` or `sji_bursts` of ``data`` for the values typed (`_ask`), in the background
-    (`analysis.start`).
+    Add the `si_iv_bursts` or `sji_bursts` of ``data`` for the values typed, in the background.
     """
     sji = _check_bursts(data)  # before asking
     parameters = _ask(data, sji)

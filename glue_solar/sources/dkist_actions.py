@@ -1,6 +1,5 @@
 """
-The data actions of DKIST datasets: 'Mosaic…' of DKIST mosaics, 'Frame quality…' and 'Download these frames…'. They are
-not in `glue_solar.sources.dkist`, which the quicklook imports, as they import the quicklook.
+The data actions of DKIST datasets: 'Mosaic…' of DKIST mosaics, 'Frame quality…' and 'Download these frames…'.
 """
 
 import os
@@ -83,9 +82,9 @@ def _add_mosaic(data_collection, tiles, at, image):
 @messagebox_on_error("Could not make the mosaic")
 def mosaic_dkist(data, data_collection):
     """
-    Add the loaded tiles of the DKIST mosaic of ``data`` reprojected into one image in the background (`_mosaic_image`),
-    at the frame, Stokes parameter, repeat and wavelength an Image viewer shows them at (`_slice_shown`), linked to them
-    and to other data by 'Link helioprojective coordinates', and open it in an Image viewer.
+    Add the loaded tiles of the DKIST mosaic of ``data`` reprojected into one image in the background, at the frame,
+    Stokes parameter, repeat and wavelength an Image viewer shows them at, linked to them and to other data by 'Link
+    helioprojective coordinates', and open it in an Image viewer.
     """
     _check_mosaic(data)
     tiles = [tile for tile in data._mosaic if tile in data_collection]
@@ -241,10 +240,10 @@ class _FrameCurves(QtCore.QObject):
 @messagebox_on_error("Could not show the frame quality")
 def frame_quality_dkist(data, data_collection):
     """
-    Add the frame quality of ``data``, a DKIST dataset or a tile of a mosaic, from its headers (`_frame_quality`),
-    linked to it by ``Time``, or take the one added before, and open it in a Profile viewer that follows the time
-    sliders of its Image viewers and moves them (`_FrameCurves`): the seeing, ``ATMOS_R0``, else the light level,
-    ``LIGHTLVL``, the frames whose AO was not locked shaded; the others are the layer's attributes.
+    Add the frame quality of ``data``, a DKIST dataset or a tile of a mosaic, from its headers, linked to it by
+    ``Time``, or take the one added before, and open it in a Profile viewer that follows the time sliders of its Image
+    viewers and moves them: the seeing, ``ATMOS_R0``, else the light level, ``LIGHTLVL``, the frames whose AO was not
+    locked shaded; the others are the layer's attributes.
     """
     _check_frames(data)
     # the one added before, as a session restores it without its curves' line and clicks
@@ -447,9 +446,9 @@ def _watch_download(data_collection, label, pending):
 def download_dkist(data, data_collection):
     """
     Start a Globus transfer in the background of the missing FITS files of ``data``, a DKIST dataset, or of its
-    mosaic's loaded tiles, chosen in a dialog (`_ask_download`) at the Stokes parameter, repeat and measurement of its
-    first Image viewer (`_shown_at`), into its ASDF file's folder; those files alone, not dkist's ASDF file, movie and
-    quality report (`_transfer`). Their frames fill in as they arrive (`_watch_download`).
+    mosaic's loaded tiles, chosen in a dialog at the Stokes parameter, repeat and measurement of its first Image
+    viewer, into its ASDF file's folder; those files alone, not dkist's ASDF file, movie and quality report. Their
+    frames fill in as they arrive.
     """
     _check_download(data)
     tiles = [tile for tile in data._mosaic if tile in data_collection]

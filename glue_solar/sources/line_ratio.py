@@ -102,8 +102,7 @@ def o_iv_density(numerator, denominator, log_densities=LOG_DENSITIES, log_temper
     fiasco computes on electron densities from and to ``log_densities``, 10^8 to 10^13 cm^-3 unless changed, 0.1 dex
     apart, at temperatures from log T 4.5 to 6, 0.05 apart, and irispy interpolates, linearly, at ``log_temperature``,
     O IV's formation temperature, 5.15, unless changed, as one dataset on that grid, as `line_ratio`'s; its ``meta``
-    holds ``ratio_preset`` in place of ``ratio_table``, with ``ratio_log_n_e`` and ``ratio_log_t``, the densities and
-    temperature.
+    holds ``ratio_preset`` too, with ``ratio_log_n_e`` and ``ratio_log_t``, the densities and temperature.
 
     fiasco (``pip install 'glue-solar[density]'``) downloads and builds the CHIANTI database on
     its first use, in ``~/.fiasco`` or where its ``~/.fiasco/fiascorc`` says.
@@ -254,7 +253,10 @@ def _maps(layers):
 )
 @messagebox_on_error("Could not map the line ratio")
 def line_ratio_iris(layers, data_collection):
-    """Add the `line_ratio` of the components picked (`_ask`) on a table, or their `o_iv_density`, in the background."""
+    """
+    Add the `line_ratio`, on a table, of two components picked among the maps of ``layers``, or their `o_iv_density`,
+    the latter computed in the background.
+    """
     picked = _ask(_maps(layers))
     if picked is None:
         return

@@ -59,12 +59,17 @@ def extract_archive(path):
     Unpack a ``*.tar.gz`` next to itself, into ``<name without .tar.gz>/``.
 
     This is the layout pooch uses, so a later `scan_directory` picks the files up under the same observation as the
-    archive (irispy's ``read_files`` extracts into its own cache folder since LM-SAL/irispy#244).
+    archive.
 
     Returns
     -------
     `~pathlib.Path`
         The directory the files were extracted into.
+
+    Raises
+    ------
+    FileExistsError
+        If that directory exists already.
     """
     path = Path(path)
     target = path.with_suffix("").with_suffix("")
