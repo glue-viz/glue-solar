@@ -338,7 +338,11 @@ astropy, WCSLIB, echo, matplotlib and mpl-scatter-density
 
 - ``_GlueWCS`` ``WCS_LOCK`` (#60). Always on (not safely probeable). Retired by astropy #19174's fix, once 8 unlocked
   threads give 0 wrong -TAB values: it corrupts silently, without crashing, 1187 to 1267 of 2400 calls on 8.0.2
-  (comment drafted, ``updrafts/reports/astropy-19174-comment.md`` in the session archive).
+  (comment drafted, ``updrafts/reports/astropy-19174-comment.md`` in the session archive). The lock also guards the
+  one celestial model a slit-jaw image's gWCS sets and then evaluates at each frame (dkist's
+  ``VaryingCelestialTransform``, as in the dkist entry below), which irispy's slit-jaw burst search, on a worker, is
+  given a deep copy of (``sji_bursts``). Retiring it needs that model safe across threads too, not astropy's -TAB fix
+  alone.
 - ``_LockedWCS``: each plain WCS beneath a ``_GlueWCS`` becomes one in place at construction (``_lock_wcslib``: a
   raster's, a stack's scans' and scan axis's, a rebinned or restored window's, AIA and SOT cubes'), so the analyses
   hold ``WCS_LOCK`` per wcslib call, never across irispy's calls; each plain WCS ``link_hpc`` links on request, or a

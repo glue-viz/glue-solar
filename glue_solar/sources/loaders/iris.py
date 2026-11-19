@@ -82,6 +82,8 @@ def _axes_of(data, *kinds):
 # because a _GlueWCS can wrap another; one lock for all, because derived datasets share a WCS.
 # Code that reads an astropy WCS's struct (wcs.wcs) directly must hold it too. Always on, since the race
 # cannot be probed safely; it can go once an astropy release fixes #19174 and the thread test passes without it.
+# It also guards the one celestial model a slit-jaw image's gWCS sets and then evaluates at each frame (dkist's
+# VaryingCelestialTransform). So it can go only once that model is safe across threads too, not on astropy's fix alone.
 WCS_LOCK = threading.RLock()
 
 # WCSAxes converts the same pixels about twice in each draw, and all of them again at every redraw; one

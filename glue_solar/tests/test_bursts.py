@@ -247,6 +247,26 @@ def test_a_slit_jaw_image_gives_irispys_labels_and_events_on_its_coordinates(
     assert_irispys(labels, table, *find_bright_image_events(clean))
 
 
+def test_a_slit_jaw_image_s_bursts_are_searched_through_a_copy_of_its_coordinates(monkeypatch, irispy_test_files):
+    import irispy.utils.bursts
+
+    sji = image_data(find_irispy_test_file(irispy_test_files, SJI_1400))
+    searched = []
+
+    def find(cube, **parameters):
+        searched.append(cube.wcs.low_level_wcs)
+        return find_bright_image_events(cube, **parameters)
+
+    monkeypatch.setattr(irispy.utils.bursts, "find_bright_image_events", find)
+    [labels, _] = sji_bursts(sji)
+    # irispy evaluates it on a worker without `WCS_LOCK`: not the one the GUI thread evaluates, of one shared model
+    [wcs] = searched
+    assert wcs is not sji.coords._wcs
+    assert labels.coords._wcs is sji.coords._wcs
+    pixels = np.meshgrid(*(np.arange(0, size, 7.0) for size in sji.shape[::-1]), indexing="ij")
+    np.testing.assert_array_equal(wcs.pixel_to_world_values(*pixels), sji.coords._wcs.pixel_to_world_values(*pixels))
+
+
 def test_refusals_and_errors_show_why(app, monkeypatch, irispy_test_files):
     [raster] = raster_data([find_irispy_test_file(irispy_test_files, SI_IV)])
     [c_ii] = raster_data([find_irispy_test_file(irispy_test_files, SCAN)], ["C II 1336"])
