@@ -1,0 +1,1 @@
+A dataset linked by "Link helioprojective coordinates" stays unlinked once its links are removed in glue's Link Data dialog; the next quicklook or analysis linked it again.

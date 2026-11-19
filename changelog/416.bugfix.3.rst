@@ -1,0 +1,1 @@
+"Clear point" empties the Point window's row and hides the point's lines in the quicklook of a cube with no observation, such as a plain FITS cube; and a click on a slit-jaw or DKIST context image moves the point with the raster's panels turned off in the Panels list.

@@ -1,0 +1,1 @@
+An import of glue-solar that fails logs an error, a probe of a glue patch that raises logs a warning, and a weekly CI job runs the tests on the development versions of glue, glue-qt and astropy.

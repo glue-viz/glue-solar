@@ -1,0 +1,1 @@
+A message logged while the observation browser reads files no longer edits glue's console from the reading thread, and the slit-jaw burst search works on its own copy of the image's coordinates.

@@ -1,0 +1,1 @@
+The "IRIS field of view" boxes follow a shifted pointing and a removed raster while "Raster overlays" is off.
