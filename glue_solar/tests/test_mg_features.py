@@ -16,8 +16,8 @@ from qtpy import QtWidgets
 import astropy.units as u
 from astropy import constants
 
+from glue_solar import describe
 from glue_solar.conftest import SCAN, find_irispy_test_file, int16_copy
-from glue_solar.quicklook import _wavelengths
 from glue_solar.sources import mg_features
 from glue_solar.sources.loaders import iris
 from glue_solar.sources.loaders.iris import image_data, keep_hpc_linked, link_hpc, raster_data
@@ -68,7 +68,7 @@ def test_the_action_adds_irispys_maps_as_one_linked_dataset_in_a_viewer(
     collection.extend([sji, raster])
     keep_hpc_linked(collection)
     opened = answer(monkeypatch)
-    monkeypatch.setattr("glue_solar.sources.moments.SLAB", 3 * 109 * 33)  # slabs of 3 steps on the crop of both lines
+    monkeypatch.setattr("glue_solar.sources.analysis.SLAB", 3 * 109 * 33)  # slabs of 3 steps on the crop of both lines
     maps = run(app, qtbot, raster)
     assert opened == [{"from": -40.0, "to": 40.0, "k": True, "h": True}]  # irispy's defaults
     assert maps.label == f"{raster.label} Mg II features"
@@ -98,7 +98,7 @@ def test_a_saturated_sample_blanks_its_lines_features_at_its_pixel(app, qtbot, m
     finds them; the status bar says how many pixels.
     """
     monkeypatch.setattr(iris, "LAZY", False)
-    monkeypatch.setattr("glue_solar.sources.moments.SLAB", 3 * 109 * 33)  # slabs of 3 steps on the crop of both lines
+    monkeypatch.setattr("glue_solar.sources.analysis.SLAB", 3 * 109 * 33)  # slabs of 3 steps on the crop of both lines
     [raster] = raster_data([scan_path], ["Mg II k 2796"])
     app.data_collection.append(raster)
     clean = calculate_mg_features(dn_per_second_cube(raster, DN_UNIT["NUV"]))
@@ -127,7 +127,7 @@ def test_a_stack_gives_each_scans_maps_at_its_coordinates(app, qtbot, monkeypatc
     A lazy stack of 3860258481's three scans, in slabs of 3 steps, with a rest wavelength set 0.3 Å redder than irispy's
     k, gives one dataset whose maps and coordinates at each scan are those of the scan loaded alone.
     """
-    monkeypatch.setattr("glue_solar.sources.moments.SLAB", 3 * 109 * 33)
+    monkeypatch.setattr("glue_solar.sources.analysis.SLAB", 3 * 109 * 33)
     [stack] = raster_data(stack_paths, ["Mg II k 2796"], stack=True)
     collection = app.data_collection
     rest = _REST_WAVELENGTH["k"].to_value(u.AA) + 0.3
@@ -175,9 +175,9 @@ def test_a_rest_wavelength_set_shifts_the_wavelengths_irispy_is_given(app, qtbot
             np.testing.assert_allclose(shifted[name][found] - plain[name][found], -c * 0.01 / rest[line], atol=1e-5)
             np.testing.assert_allclose(shifted[f"{line}{feature}_intensity"], plain[f"{line}{feature}_intensity"])
     # over a pixel, 0.3 Å, in slabs of 3 steps: what irispy finds on the whole window shifted so, its crop shifted too
-    monkeypatch.setattr("glue_solar.sources.moments.SLAB", 3 * 109 * 33)
+    monkeypatch.setattr("glue_solar.sources.analysis.SLAB", 3 * 109 * 33)
     raster.meta["rest_wavelength"] = rest["k"] + 0.3
-    wavelengths, _ = _wavelengths(raster)
+    wavelengths, _ = describe.wavelengths(raster)
     shift = -(raster.meta["rest_wavelength"] - rest["k"]) * (wavelengths.size - 1) / (wavelengths[-1] - wavelengths[0])
     cube = dn_per_second_cube(raster, DN_UNIT["NUV"])
     cube = SpectrogramCube(cube.data, ResampledLowLevelWCS(cube.wcs, 1, (shift, 0, 0)), unit=cube.unit, mask=cube.mask)

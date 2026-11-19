@@ -179,7 +179,7 @@ glue-core
   back to a quicklook's Profile panel, and any cube of ``large_data_size`` values or more not from the IRIS reader, with
   its data layer hidden, a status-bar note and the range fitted once to the first computed
   subset profile (``hidden_cube_profile``, ``_FitOnceComputed``, #95, #233, S13, SST4). Switch: the viewer's
-  ``large_data_size`` and the data's ``_role``; the quicklook's ``_solar_hidden``. Retired by glue's
+  ``large_data_size`` and the data's ``describe.role``; the quicklook's ``_solar_hidden``. Retired by glue's
   ``_reset_y_limits`` using cached profiles only (R14) and ``compute_statistic`` without the float64 copy (R21), or
   glue-qt adding large data hidden (upstream list).
 - **A quicklook spectrum or curve panel's profile limits set on the GUI thread after each move of its subset**, so
@@ -256,7 +256,7 @@ glue-qt
 - **Quicklook panels marked** ``_closed`` **as their window's close box closes them** (``window_closed`` connected in
   ``quicklook._fill``'s ``add``, #360), as glue-qt's ``closeEvent`` leaves ``_closed`` unset. Always on (quicklook
   panels). Retired by glue-qt's ``closeEvent`` setting ``_closed`` (report candidate).
-- **Analysis result viewers open with glue-qt's default mouse mode off** (``moments._view``, #300). Always on. Retired
+- **Analysis result viewers open with glue-qt's default mouse mode off** (``analysis.view``, #300). Always on. Retired
   by glue-qt's data collection leaving the edit subset alone (upstream list).
 - **Settings on the Fit tab opens a fitter's own** ``settings_widget``, the IRIS fitter's component list
   (``glue_patches._on_settings``, ``fitters._Settings``, #314, D86). Switch ``needs_fitter_settings_workaround()``,
@@ -320,7 +320,7 @@ glue-qt
   again (``tools.BandTool._band``, #169), as glue-qt's slider sets a plain index at any move. Per viewer: while a band
   is on. Retired by glue-qt's slice slider moving an ``AggregateSlice``'s center and keeping its range (upstream list).
 - **The right-click entries shown or hidden for the selection again as a glue-solar data action returns, and as its
-  worker ends** (``glue_patches.refresh_layer_actions``, called by ``layer_action``'s wrapper and ``moments._start``,
+  worker ends** (``glue_patches.refresh_layer_actions``, called by ``layer_action``'s wrapper and ``analysis.start``,
   #255): glue-qt's ``LayerAction.update_enabled`` runs as the selection changes only, so an action that changes its
   own guard, as 'IRIS: radiometric calibration', stayed offered. Always on. Retired by glue-qt updating its layer
   actions after one runs (report candidate).

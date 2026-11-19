@@ -10,9 +10,9 @@ from qtpy import QtWidgets
 
 import astropy.units as u
 
+from glue_solar import describe
 from glue_solar.glue_patches import layer_action
-from glue_solar.quicklook import _wavelengths
-from glue_solar.sources.moments import _accepted, _check, _cube, _dataset, _form, _slabs, _start, _unit
+from glue_solar.sources import analysis
 
 __all__ = ["mg_features", "mg_features_iris"]
 
@@ -41,7 +41,7 @@ def _crop(data, velocities, lines, rest=None):
     """
     Those of ``lines`` that ``data`` covers over ``velocities``, as irispy finds them, the wavelength pixels it takes of
     them, a pixel wider at either end, so it finds the same within them, and the shift of its wavelengths, in pixels
-    (`_cube`), that has irispy measure k from ``rest``, a rest wavelength set (`_rest`); raises why for none.
+    (`analysis.cube`), that has irispy measure k from ``rest``, a rest wavelength set (`_rest`); raises why for none.
     """
     from irispy.utils.mg_features import _REST_WAVELENGTH
 
@@ -50,7 +50,7 @@ def _crop(data, velocities, lines, rest=None):
     low, high = velocities
     if not low < high:
         raise ValueError(f"The velocities, from {low} to {high} km / s, do not increase.")
-    wavelengths, _ = _wavelengths(data)
+    wavelengths, _ = describe.wavelengths(data)
     # each shorter by rest less irispy's k, as irispy advises for IDL's wave_comp: k is then measured from rest, h from
     # irispy's h as far off
     offset = 0.0 if rest is None else rest - _REST_WAVELENGTH["k"].to_value(u.AA)
@@ -76,9 +76,10 @@ def _crop(data, velocities, lines, rest=None):
 
 def _covered(data):
     """
-    Those of `LINES` that ``data`` covers over `VELOCITIES` (`_crop`); raise why for data `_check` refuses or none.
+    Those of `LINES` that ``data`` covers over `VELOCITIES` (`_crop`); raise why for data `analysis.check` refuses or
+    none.
     """
-    _check(data)
+    analysis.check(data)
     return _crop(data, VELOCITIES, LINES)[0]
 
 
@@ -91,16 +92,16 @@ def _mg_features(data, velocities, lines, crop, shift, unit, rest=None):
 
     maps = {}
     # irispy measures each step on its own, so a slab of steps gives what the whole window would
-    for rows, values, _, saturated in _slabs(data, crop):
+    for rows, values, _, saturated in analysis.slabs(data, crop):
         # a line's features are NaN where a sample it searches is saturated, as its saturated map says
         slab = calculate_mg_features(
-            _cube(data, values, rows, crop, unit, saturated, shift=shift),
+            analysis.cube(data, values, rows, crop, unit, saturated, shift=shift),
             velocity_range=velocities * u.km / u.s,
             lines=lines,
         )
         for name, feature in slab.items():
             maps.setdefault(name, []).append((feature.data, feature.unit))
-    features = _dataset(data, f"{data.label} Mg II features")
+    features = analysis.dataset(data, f"{data.label} Mg II features")
     features.meta.update(mg_features_velocities=tuple(velocities), mg_features_lines=lines)
     if rest is not None:
         features.meta["mg_features_rest_wavelength"] = rest
@@ -150,9 +151,9 @@ def mg_features(data, velocities=VELOCITIES, lines=LINES):
         For other data than an IRIS raster window or stack, a rest wavelength set over 1 Å from irispy's k, other
         ``lines``, velocities that do not increase, or a window that covers none of ``lines`` over them.
     """
-    _check(data)
+    analysis.check(data)
     rest = _rest(data)
-    return _mg_features(data, velocities, *_crop(data, velocities, lines, rest), _unit(data), rest)
+    return _mg_features(data, velocities, *_crop(data, velocities, lines, rest), analysis.unit(data), rest)
 
 
 def _ask(data, lines):
@@ -160,7 +161,7 @@ def _ask(data, lines):
     The velocities typed for ``data``, from and to, in km / s, and the lines ticked, at first ``lines``; or None for
     none ticked or Cancel.
     """
-    dialog, form = _form(f"IRIS: Mg II features of {data.label}")
+    dialog, form = analysis.form(f"IRIS: Mg II features of {data.label}")
     boxes = []
     for name, value in zip(("from", "to"), VELOCITIES):
         box = QtWidgets.QDoubleSpinBox(objectName=name, decimals=3, minimum=-1000, maximum=1000, suffix=" km / s")
@@ -170,7 +171,7 @@ def _ask(data, lines):
     ticks = [QtWidgets.QCheckBox(f"Mg II {line}", objectName=line, checked=line in lines) for line in LINES]
     for tick in ticks:
         form.addRow(tick)
-    if not _accepted(dialog, form):
+    if not analysis.accepted(dialog, form):
         return None
     lines = tuple(line for line, tick in zip(LINES, ticks) if tick.isChecked())
     return (tuple(box.value() for box in boxes), lines) if lines else None
@@ -196,8 +197,10 @@ def _saturated(features):
 )
 @messagebox_on_error("Could not compute Mg II features")
 def mg_features_iris(data, data_collection):
-    """Add the `mg_features` of ``data`` for the values typed (`_ask`), computed in the background (`_start`)."""
-    _check(data)  # before asking
+    """
+    Add the `mg_features` of ``data`` for the values typed (`_ask`), computed in the background (`analysis.start`).
+    """
+    analysis.check(data)  # before asking
     rest = _rest(data)
     chosen = _ask(data, _crop(data, VELOCITIES, LINES, rest)[0])
     if chosen is None:
@@ -205,4 +208,6 @@ def mg_features_iris(data, data_collection):
     velocities, lines = chosen
     text, title = f"Computing Mg II features of {data.label}…", "Could not compute Mg II features"
     line = velocities, *_crop(data, velocities, lines, rest)
-    _start(data_collection, text, title, _mg_features, data, *line, _unit(data), rest, said=_saturated, view=True)
+    analysis.start(
+        data_collection, text, title, _mg_features, data, *line, analysis.unit(data), rest, said=_saturated, view=True
+    )

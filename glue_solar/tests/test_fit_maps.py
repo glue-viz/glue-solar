@@ -26,9 +26,9 @@ from astropy import constants
 from astropy.io import fits
 from astropy.modeling import models
 
+from glue_solar import describe
 from glue_solar.fitters import GaussianConstantFitter, _component
-from glue_solar.quicklook import _wavelengths
-from glue_solar.sources import fit_maps, moments
+from glue_solar.sources import analysis, fit_maps
 from glue_solar.sources.loaders import iris
 from glue_solar.sources.loaders.iris import WCS_LOCK, keep_hpc_linked, link_hpc, raster_data
 from glue_solar.tests.helpers import add_component, click, fit_settings
@@ -128,7 +128,7 @@ def test_each_viewer_fits_the_window_with_its_own_fit(app, qtbot, scan_path, cal
     fitted = fit(qtbot, first), fit(qtbot, second, narrow)
     for tools in (first, second):
         run(app, qtbot, tools)
-    wavelengths = _wavelengths(raster)[0]
+    wavelengths = describe.wavelengths(raster)[0]
     for call, model, (low, high) in zip(calls, fitted, (LINE, narrow), strict=True):
         np.testing.assert_array_equal(call["world"][0].value, wavelengths[(wavelengths >= low) & (wavelengths <= high)])
         np.testing.assert_array_equal(call["model"].stddev_1.value, model.stddev_1.value)  # the width kept
@@ -278,7 +278,7 @@ def test_saturated_samples_are_left_out_of_the_fits(app, qtbot, monkeypatch, sca
     keeps it in its Profile fit, which says so (D86, D87).
     """
     [raster] = raster_data([scan_path], ["Si IV 1403"])
-    peak = np.argmin(np.abs(_wavelengths(raster)[0] - 1402.77))
+    peak = np.argmin(np.abs(describe.wavelengths(raster)[0] - 1402.77))
     with fits.open(scan_path, mode="update", do_not_scale_image_data=True) as hdulist:  # Si IV 1403's raw int16
         hdulist[5].data[:, 10, peak] = 32760
     [raster] = raster_data([scan_path], ["Si IV 1403"])
@@ -297,7 +297,7 @@ def test_saturated_samples_are_left_out_of_the_fits(app, qtbot, monkeypatch, sca
     np.testing.assert_array_equal(model.parameters, fitted.parameters)  # in Angstrom already
     assert call["model"] is start
     [wavelengths] = call["world"]
-    [sample] = np.flatnonzero(wavelengths.value == _wavelengths(raster)[0][peak])
+    [sample] = np.flatnonzero(wavelengths.value == describe.wavelengths(raster)[0][peak])
     assert cube.mask[:, 10, sample].all()
     np.testing.assert_array_equal(call["data"], np.where(cube.mask, np.nan, cube.data))
 
@@ -469,11 +469,11 @@ def test_a_stack_s_scans_are_fitted_together_a_chunk_a_task(app, qtbot, monkeypa
     assert (call["data"].shape[:3], call["fitting_axes"]) == (stack.shape[:3], 3)
     assert call["scheduler"].keywords["chunksize"] == 1
     crop = slice(0, call["data"].shape[3])
-    assert moments._slab_rows(stack, crop, scans=True) == [(slice(0, 3), slice(None), slice(None))]
+    assert analysis.slab_rows(stack, crop, scans=True) == [(slice(0, 3), slice(None), slice(None))]
     steps = stack.shape[1]
-    monkeypatch.setattr(moments, "SLAB", steps * stack.shape[2] * crop.stop)  # a scan a slab: each alone again
+    monkeypatch.setattr(analysis, "SLAB", steps * stack.shape[2] * crop.stop)  # a scan a slab: each alone again
     alone = [(scan, slice(0, steps), slice(None)) for scan in range(3)]
-    assert moments._slab_rows(stack, crop, scans=True) == moments._slab_rows(stack, crop) == alone
+    assert analysis.slab_rows(stack, crop, scans=True) == analysis.slab_rows(stack, crop) == alone
     [pool] = {call["scheduler"].keywords["pool"] for call in calls}  # one for the run
     with pytest.raises(RuntimeError, match="after shutdown"):
         pool.submit(int)
@@ -496,7 +496,7 @@ def test_a_window_is_fitted_slab_by_slab(app, qtbot, monkeypatch, scan_path, cal
     progresses, fit_maps_ = [], fit_maps._fit_maps
     monkeypatch.setattr(fit_maps, "_fit_maps", lambda *args: progresses.append(args[-1]) or fit_maps_(*args))
     _, slit, samples = calls[0]["data"].shape
-    monkeypatch.setattr(moments, "SLAB", 3 * slit * samples)  # steps 0-2, 3-5 and 6-7
+    monkeypatch.setattr(analysis, "SLAB", 3 * slit * samples)  # steps 0-2, 3-5 and 6-7
     slabs = run(app, qtbot, tools)
     assert [call["data"].shape[0] for call in calls[1:]] == [3, 3, 2]
     assert len({call["scheduler"].keywords["pool"] for call in calls[1:]}) == 1  # one for the run

@@ -34,9 +34,9 @@ from astropy.wcs import WCS
 from astropy.wcs.wcsapi import HighLevelWCSWrapper
 
 import glue_solar
-from glue_solar import glue_patches
+from glue_solar import describe, glue_patches
 from glue_solar.conftest import SCAN, find_irispy_test_file
-from glue_solar.quicklook import _role, coordinator, nearest, quicklook
+from glue_solar.quicklook import coordinator, quicklook
 from glue_solar.regrid import north_up, rebin, regrid_on_time
 from glue_solar.sources.bursts import si_iv_bursts, sji_bursts
 from glue_solar.sources.calibration import radiometric_calibration, remove_dust
@@ -870,7 +870,7 @@ def test_browse_iris_links_what_it_loads(app, qtbot, tmp_path, irispy_test_files
     assert len(dc) > 5  # the map, two SJIs, the SOT cube and every raster window
     # longitude and latitude of each IRIS dataset, and of the observation's SOT cube, to the first (D115), and the
     # quicklook's exposure and slit pixels of each other raster window to the one it shows; not the map's (D72)
-    windows = 2 * (sum(_role(data) == "raster" for data in dc) - 1)
+    windows = 2 * (sum(describe.role(data) == "raster" for data in dc) - 1)
     hpc = [link for link in dc.external_links if {cid.label for cid in (*link.cids1, *link.cids2)} <= set(HPC)]
     assert (len(hpc), len(dc.external_links) - len(hpc)) == (2 * (len(dc) - 2), windows)
     [cube] = [data for data in dc if data.meta.get("INSTRUME") == "SOT"]
@@ -931,7 +931,7 @@ def test_the_link_graph_is_the_same_with_the_autolinker_run_first_or_last(app, q
         assert viewers["wavelength"].state.slices[1] == slit
         [spectrum] = [layer for layer in viewers["spectrum"].state.layers if layer.visible]
         np.testing.assert_array_equal(spectrum.profile[1], raster[raster.main_components[0]][step, slit])
-        [frame], _ = nearest(raster_times[step : step + 1], sji_times)
+        [frame], _ = describe.nearest(raster_times[step : step + 1], sji_times)
         qtbot.waitUntil(lambda: sji_viewer.state.slices[0] == frame)
         qtbot.waitUntil(marker.get_visible)
         assert tuple(marker.get_xydata()[0]) == pytest.approx(raster_point_on_sji(raster, sji, step, slit, frame))
@@ -942,7 +942,7 @@ def test_the_link_graph_is_the_same_with_the_autolinker_run_first_or_last(app, q
     [group] = app.session.edit_subset_mode.edit_subset
     for frame in (8, 40):  # the nearest exposure comes after, then before, the frame
         sji_viewer.state.slices = (frame, 0, 0)
-        [exposure], _ = nearest(sji_times[frame : frame + 1], raster_times)
+        [exposure], _ = describe.nearest(sji_times[frame : frame + 1], raster_times)
         qtbot.waitUntil(lambda: group.subset_state.slices[:2] == [slice(exposure, exposure + 1), slice(slit, slit + 1)])
     assert dc.external_links == links  # time sync adds no links
     assert [list(data.components) for data in dc] == components

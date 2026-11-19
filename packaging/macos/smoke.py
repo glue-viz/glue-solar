@@ -36,7 +36,8 @@ from sunpy.util.sysinfo import find_dependencies
 
 def check(app):
     try:  # an import that fails would leave glue's window open
-        from glue_solar.quicklook import QuicklookImageViewer, _role
+        from glue_solar.describe import role
+        from glue_solar.quicklook import QuicklookImageViewer
         from glue_solar.sources.calibration import radiometric_calibration
         from glue_solar.sources.line_ratio import _has_fiasco
 
@@ -70,7 +71,7 @@ def check(app):
         assert any(isinstance(viewer, QuicklookImageViewer) for tab in app.viewers for viewer in tab)
         print(f"quicklook {time.perf_counter() - began:.2f} s", flush=True)
         began = time.perf_counter()
-        raster = next(data for data in app.data_collection if _role(data) == "raster")
+        raster = next(data for data in app.data_collection if role(data) == "raster")
         assert np.isfinite(raster[radiometric_calibration(raster)]).any()
         print(f"radiometric calibration {time.perf_counter() - began:.2f} s", flush=True)
         began = time.perf_counter()

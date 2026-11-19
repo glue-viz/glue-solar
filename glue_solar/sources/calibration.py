@@ -12,8 +12,9 @@ import astropy.units as u
 from astropy.wcs import WCS
 from astropy.wcs.wcsapi.wrappers import SlicedLowLevelWCS
 
+from glue_solar import describe
 from glue_solar.glue_patches import layer_action
-from glue_solar.quicklook import _role
+from glue_solar.sources import analysis
 from glue_solar.sources.loaders.iris import (
     WCS_LOCK,
     _add_exposure,
@@ -23,7 +24,6 @@ from glue_solar.sources.loaders.iris import (
     _irispy_meta,
 )
 from glue_solar.sources.loaders.lazy import at_ceiling
-from glue_solar.sources.moments import _check, _start, _unit
 
 __all__ = ["radiometric_calibration", "radiometric_calibration_iris", "remove_dust", "remove_dust_iris"]
 
@@ -43,7 +43,7 @@ def _check_sji(data):
     from gwcs import WCS as GWCS
 
     # exposure times, which every slit-jaw image has, not its bursts' labels, which keep its meta and coordinates
-    if _role(data) != "sji" or data.ndim != 3 or data.find_component_id("Exposure time") is None:
+    if describe.role(data) != "sji" or data.ndim != 3 or data.find_component_id("Exposure time") is None:
         raise ValueError(f"{data.label} is not an IRIS slit-jaw image.")
     if data.meta.get("dust_removed"):
         raise ValueError(f"{data.label} has its dust removed already.")
@@ -122,9 +122,9 @@ def remove_dust(data):
 )
 @messagebox_on_error("Could not remove dust")
 def remove_dust_iris(data, data_collection):
-    """Add ``data`` with its dust removed (`remove_dust`), in the background (`_start`)."""
+    """Add ``data`` with its dust removed (`remove_dust`), in the background (`analysis.start`)."""
     _check_sji(data)
-    _start(data_collection, f"Removing dust from {data.label}…", "Could not remove dust", remove_dust, data)
+    analysis.start(data_collection, f"Removing dust from {data.label}…", "Could not remove dust", remove_dust, data)
 
 
 def _scan_wcses(data):
@@ -143,7 +143,7 @@ def _check_radiance(data):
     Raise why ``data`` is not an IRIS raster window or stack that can be calibrated: one calibrated already, or a stack
     with a scan whose pixel sizes, CDELT1-3, differ from its first scan's, which give every scan's factor.
     """
-    _check(data)
+    analysis.check(data)
     if data.find_component_id(f"{data.main_components[0].label} radiance") is not None:
         raise ValueError(f"{data.label} has its radiance already.")
     with WCS_LOCK:
@@ -190,7 +190,7 @@ def radiometric_calibration(data):
     _check_radiance(data)
     cid = data.main_components[0]
     label = f"{cid.label} radiance"
-    rate, unit = data.id[f"{cid.label} DN / s"], _unit(data)
+    rate, unit = data.id[f"{cid.label} DN / s"], analysis.unit(data)
     scan, zeros = (0,) * (data.ndim - 3), np.broadcast_to(np.float32(0), data.shape[-3:])
     meta = _irispy_meta(data, scan)  # its DATE_OBS, a stack's first scan's, every scan's
     response = get_latest_response(meta.date_reference)

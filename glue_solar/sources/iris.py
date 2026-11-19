@@ -22,19 +22,11 @@ from astropy.time import Time
 from astropy.wcs.utils import celestial_frame_to_wcs
 from astropy.wcs.wcsapi import HighLevelWCSWrapper
 
+from glue_solar import describe
 from glue_solar.glue_patches import _application, export_fits, layer_action
-from glue_solar.quicklook import (
-    _cube_axes,
-    _pick_sjis,
-    _pick_windows,
-    _role,
-    _same_file,
-    _time_axis,
-    coordinator,
-    observation_key,
-    quicklook,
-)
+from glue_solar.quicklook import _pick_sjis, _pick_windows, coordinator, quicklook
 from glue_solar.regrid import _NorthUp
+from glue_solar.sources import analysis
 from glue_solar.sources.bursts import _shift_events
 from glue_solar.sources.dkist import DKISTData
 from glue_solar.sources.loaders.iris import (
@@ -46,7 +38,6 @@ from glue_solar.sources.loaders.iris import (
     last_directory,
 )
 from glue_solar.sources.loaders.scan import _is_supported_file, _primary_header, strip_pooch
-from glue_solar.sources.moments import _accepted
 
 __all__ = [
     "browse_iris",
@@ -156,7 +147,7 @@ def _quicklooks(loaded):
 
 def _has_quicklook(datasets):
     """Whether ``datasets`` hold a raster or slit-jaw image, which a quicklook shows, and not only AIA or SOT cubes."""
-    return any(_role(data) in ("raster", "sji") for data in datasets)
+    return any(describe.role(data) in ("raster", "sji") for data in datasets)
 
 
 def _shown(loaded, quicklooks, main=None):
@@ -170,11 +161,11 @@ def _shown(loaded, quicklooks, main=None):
         return [datasets[0] for _, kind, _, datasets in loaded if kind != "raster"][:1]
     shown = []
     for datasets, window in quicklooks:
-        rasters = [data for data in datasets if _role(data) == "raster"]
+        rasters = [data for data in datasets if describe.role(data) == "raster"]
         if rasters:
             raster, others = _pick_windows(rasters, window, main)
-            shown += [raster] + [data for data in others if _time_axis(data) is not None]
-        shown += _pick_sjis([data for data in datasets if _role(data) == "sji"])[0]
+            shown += [raster] + [data for data in others if describe.time_axis(data) is not None]
+        shown += _pick_sjis([data for data in datasets if describe.role(data) == "sji"])[0]
     return shown
 
 
@@ -206,7 +197,7 @@ def _ask_offset(data, chosen):
         box.setValue(value)
         form.addRow(label, box)
         boxes.append(box)
-    return tuple(box.value() for box in boxes) if _accepted(dialog, form) else None
+    return tuple(box.value() for box in boxes) if analysis.accepted(dialog, form) else None
 
 
 def _source(data, data_collection):
@@ -247,7 +238,7 @@ def shift_pointing_iris(data, data_collection):
     offset = _ask_offset(data, chosen)
     if offset is None:
         return
-    shifted = {other.uuid for other in data_collection if _same_file(data, other)}  # one slit, one pointing
+    shifted = {other.uuid for other in data_collection if describe.same_file(data, other)}  # one slit, one pointing
     for other in data_collection:
         coords = other.coords if isinstance(other.coords, _GlueWCS) else None
         follows = other.meta.get("pointing_follows", ()) if coords is None else coords.follows
@@ -336,7 +327,7 @@ def _observations(data_collection):
     """The datasets of ``data_collection`` by IRIS observation with a quicklook, in the collection's order."""
     observations = {}
     for data in data_collection:
-        key = observation_key(data)
+        key = describe.observation_key(data)
         if key is not None:
             observations.setdefault(key, []).append(data)
     return {key: datasets for key, datasets in observations.items() if _has_quicklook(datasets)}
@@ -344,8 +335,8 @@ def _observations(data_collection):
 
 def _check_quicklook(data):
     """Raise why ``data`` has no quicklook: it is no IRIS raster or slit-jaw image, SST cube or other spectral cube."""
-    role = _role(data)
-    if role not in ("raster", "sji", "sst") and (role is not None or _cube_axes(data) is None):
+    role = describe.role(data)
+    if role not in ("raster", "sji", "sst") and (role is not None or describe.cube_axes(data) is None):
         raise ValueError(
             f"{data.label} is no IRIS raster or slit-jaw image, SST cube or cube of one wavelength and two spatial axes."
         )
@@ -366,8 +357,8 @@ def quicklook_cube(data, data_collection):
     """
     _check_quicklook(data)
     datasets = [data]
-    if _role(data) in ("raster", "sji"):
-        datasets = _observations(data_collection).get(observation_key(data), datasets)
+    if describe.role(data) in ("raster", "sji"):
+        datasets = _observations(data_collection).get(describe.observation_key(data), datasets)
     quicklook(_application(data_collection), datasets)
 
 
@@ -401,10 +392,10 @@ def iris_quicklook(session, data_collection):
         several |= len(numbers) > 1
         first = numbers[0] if numbers else None
         quicklook(app, [data for data in datasets if _raster_number(data) in (None, first)])
-    cubes = [data for data in data_collection if _role(data) == "sst"]
+    cubes = [data for data in data_collection if describe.role(data) == "sst"]
     for cube in cubes:
         quicklook(app, [cube])
-    image = next((data for data in data_collection if observation_key(data) is not None), None)
+    image = next((data for data in data_collection if describe.observation_key(data) is not None), None)
     if not observations and not cubes and image is not None:
         from glue_qt.viewers.image import ImageViewer
 

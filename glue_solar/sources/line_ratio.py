@@ -12,10 +12,10 @@ from qtpy import QtWidgets
 import astropy.units as u
 from astropy.io import ascii
 
+from glue_solar import describe
 from glue_solar.glue_patches import layer_action
-from glue_solar.quicklook import _role
+from glue_solar.sources import analysis
 from glue_solar.sources.loaders.iris import keep_hpc_linked
-from glue_solar.sources.moments import _accepted, _form, _start, _view
 
 __all__ = ["line_ratio", "line_ratio_iris", "o_iv_density"]
 
@@ -174,7 +174,7 @@ def _ask(datasets):
     table and the quantity's name, or None and the typed densities and temperature of the `O_IV` preset; or None for a
     blank path or name, or Cancel.
     """
-    dialog, form = _form("Line ratio diagnostic")
+    dialog, form = analysis.form("Line ratio diagnostic")
     cids = [cid for data in datasets for cid in data.main_components]
     intensities = [index for index, cid in enumerate(cids) if cid.label == "intensity"]
     boxes = []
@@ -220,7 +220,7 @@ def _ask(datasets):
     form.addRow("Densities to [log cm⁻³]:", densities[1])
     form.addRow("Temperature [log K]:", temperature)
     form.addRow("Quantity:", quantity)
-    if not _accepted(dialog, form):
+    if not analysis.accepted(dialog, form):
         return None
     picked = boxes[0].currentData(), boxes[1].currentData()
     if preset.isChecked():
@@ -239,7 +239,7 @@ def _maps(layers):
     datasets = [
         layer
         for layer in layers
-        if isinstance(layer, Data) and (layer.ndim == 2 or (layer.ndim == 3 and _role(layer) is None))
+        if isinstance(layer, Data) and (layer.ndim == 2 or (layer.ndim == 3 and describe.role(layer) is None))
     ]
     if sum(len(data.main_components) for data in datasets) < 2:
         raise ValueError("Select two maps on the same grid, such as the line moments of two lines.")
@@ -265,7 +265,7 @@ def line_ratio_iris(layers, data_collection):
         _o_iv_grid(*name)  # refused before anything starts
         first = "" if fiasco.defaults["hdf5_dbase_root"].is_file() else "; fiasco first builds CHIANTI, for minutes"
         text, title = f"Mapping the O IV density{first}…", "Could not map the line ratio"
-        _start(data_collection, text, title, o_iv_density, numerator, denominator, *name, view=True)
+        analysis.start(data_collection, text, title, o_iv_density, numerator, denominator, *name, view=True)
         return
     table = ascii.read(path)  # spaces or commas, an optional header line and # comments
     if len(table.colnames) < 2:
@@ -274,4 +274,4 @@ def line_ratio_iris(layers, data_collection):
     result.meta["ratio_table"] = path
     data_collection.append(result)
     keep_hpc_linked(data_collection)
-    _view(data_collection, result)
+    analysis.view(data_collection, result)

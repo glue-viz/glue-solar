@@ -11,9 +11,9 @@ from qtpy import QtWidgets
 
 import astropy.units as u
 
+from glue_solar import describe
 from glue_solar.conftest import find_irispy_test_file, int16_copy
-from glue_solar.quicklook import _wavelengths
-from glue_solar.sources import moments
+from glue_solar.sources import analysis
 from glue_solar.sources.loaders import iris
 from glue_solar.sources.loaders.iris import image_data, keep_hpc_linked, link_hpc, raster_data
 from glue_solar.sources.red_blue import red_blue_asymmetry
@@ -36,7 +36,7 @@ def run(app, qtbot, data):
 
 def assert_irispys(maps, raster, rest, wavelengths=(1, 1), velocities=(30, 55), step=5, unit=DN_UNIT["FUV"]):
     """``maps`` are irispy's own, in one call, on ``raster``'s DN / s within ``wavelengths`` of ``rest``."""
-    window, _ = _wavelengths(raster)
+    window, _ = describe.wavelengths(raster)
     taken = np.flatnonzero((window >= rest - wavelengths[0]) & (window <= rest + wavelengths[1]))
     direct = calculate_red_blue_asymmetry(
         dn_per_second_cube(raster, unit)[..., taken[0] : taken[-1] + 1],
@@ -98,7 +98,7 @@ def test_a_stack_gives_each_scans_maps_at_its_coordinates(app, qtbot, monkeypatc
     A lazy stack of 3860258481's three scans, in slabs of 3 steps, gives one dataset whose maps and coordinates at
     each scan are those of the scan loaded alone.
     """
-    monkeypatch.setattr(moments, "SLAB", 3 * 109 * 8)  # slabs of 3 steps on the crop of ±1 Å
+    monkeypatch.setattr(analysis, "SLAB", 3 * 109 * 8)  # slabs of 3 steps on the crop of ±1 Å
     [stack] = raster_data(stack_paths, ["Si IV 1403"], stack=True)
     collection = app.data_collection
     collection.append(stack)
@@ -143,7 +143,7 @@ def test_a_saturated_sample_taken_flags_its_pixel(monkeypatch, scan_path):
     """
     monkeypatch.setattr(iris, "LAZY", False)
     [raster] = raster_data([scan_path], ["Si IV 1403"])
-    cid, (wavelengths, _) = raster.main_components[0], _wavelengths(raster)
+    cid, (wavelengths, _) = raster.main_components[0], describe.wavelengths(raster)
     taken = np.flatnonzero(abs(wavelengths - 1402.77) <= 1)
     values = np.array(raster[cid])
     values[0, 10, taken[4]] = 16182

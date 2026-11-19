@@ -13,9 +13,10 @@ from qtpy import QtWidgets
 import astropy.units as u
 from astropy import constants
 
+from glue_solar import describe
 from glue_solar.conftest import find_irispy_test_file, int16_copy
-from glue_solar.quicklook import _wavelengths, quicklook
-from glue_solar.sources import doppler
+from glue_solar.quicklook import quicklook
+from glue_solar.sources import analysis
 from glue_solar.sources.doppler import doppler_image
 from glue_solar.sources.loaders import iris
 from glue_solar.sources.loaders.iris import image_data, keep_hpc_linked, link_hpc, raster_data
@@ -44,7 +45,7 @@ def numpys(raster, rest, velocities):
     The red and the blue wing of ``raster``'s DN / s at each of ``velocities`` from ``rest``, by numpy's `~numpy.interp`
     of each pixel's spectrum, velocity first.
     """
-    wavelengths, _ = _wavelengths(raster)
+    wavelengths, _ = describe.wavelengths(raster)
     rate = iris.per_second(np.asarray(raster[raster.main_components[0]], dtype=float), raster["Exposure time"])
     spectra = rate.reshape(-1, rate.shape[-1])
     shift = np.asarray(velocities) / constants.c.to_value(u.km / u.s)
@@ -143,7 +144,7 @@ def test_a_symmetric_line_gives_zero_a_redshift_a_positive_map_and_a_saturated_s
     """
     monkeypatch.setattr(iris, "LAZY", False)
     [raster] = raster_data([scan_path], ["Si IV 1403"])
-    cid, (wavelengths, _) = raster.main_components[0], _wavelengths(raster)
+    cid, (wavelengths, _) = raster.main_components[0], describe.wavelengths(raster)
     k = np.argmin(abs(wavelengths - 1402.77))
     rest = wavelengths[k]  # on a sample: a symmetric line's samples are symmetric about it
     for shift in (0, 5):
@@ -206,7 +207,7 @@ def test_refusals_and_errors_show_why(app, qtbot, monkeypatch, scan_path, irispy
         answer(monkeypatch, rest)
         action.trigger()
     # and an error on the thread
-    monkeypatch.setattr(doppler, "_read", Mock(side_effect=RuntimeError("unreadable")))
+    monkeypatch.setattr(analysis, "read", Mock(side_effect=RuntimeError("unreadable")))
     answer(monkeypatch, "1402.77")
     action.trigger()
     qtbot.waitUntil(lambda: len(shown) == 6 and not iris._RUNNING)

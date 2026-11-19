@@ -84,11 +84,11 @@ from astropy.wcs import WCS
 from sunpy.coordinates import get_earth
 
 import glue_solar
-from glue_solar import glue_patches
+from glue_solar import describe, glue_patches
 from glue_solar.conftest import MD5, OBS_A, find_irispy_test_file
 from glue_solar.fitters import GaussianConstantFitter, _component, _label, _Settings
 from glue_solar.lines import rest_wavelength_iris
-from glue_solar.quicklook import QuicklookImageViewer, _role, _wavelengths
+from glue_solar.quicklook import QuicklookImageViewer
 from glue_solar.regrid import north_up_iris, rebin_iris, regrid_iris, regrid_on_time
 from glue_solar.sources.bursts import bursts_iris
 from glue_solar.sources.calibration import radiometric_calibration_iris, remove_dust_iris
@@ -461,7 +461,7 @@ def test_open_real_aia_cutout_through_load_data(irispy_data):
     assert data.label == browser.label == "AIA 1700 2025-05-19 16:59"
     assert [cid.label for cid in data.components] == [cid.label for cid in browser.components]
     np.testing.assert_array_equal(data[data.id["Time"]], browser[browser.id["Time"]])
-    assert _role(data) == "aia"
+    assert describe.role(data) == "aia"
     assert regrid_on_time(data).meta["time_step"] == pytest.approx(24, abs=0.01)  # as it times a slit-jaw image
 
 
@@ -482,7 +482,7 @@ def test_open_sot_cube_through_load_data(tmp_path, irispy_test_files, name, labe
     data, cube = load_data(path), read_sji_lvl2(path)
     assert isinstance(data.coords, _GlueWCS)
     assert (data.label, data.style.preferred_cmap.name) == (label, "hinodesotintensity")  # fields too, as SOTMap
-    assert _role(data) == "aia"  # which follows the time as an AIA cutout
+    assert describe.role(data) == "aia"  # which follows the time as an AIA cutout
     name = data.main_components[0].label
     science = data.get_component(name)
     assert science.units == units
@@ -2435,11 +2435,11 @@ def test_profiles_give_the_doppler_velocity_from_the_rest_wavelength(
     assert tool.axis is None
     assert state.x_axislabel == "Velocity from 2796.2 Å [km / s]"  # as the top axis was
     assert [state.x_min, state.x_max] == pytest.approx(velocities([2795, 2798], 2796.2))
-    assert viewer.layers[0].state.profile[0] == pytest.approx(velocities(_wavelengths(mg)[0], 2796.2))
+    assert viewer.layers[0].state.profile[0] == pytest.approx(velocities(describe.wavelengths(mg)[0], 2796.2))
     set_rest("")  # back to Mg II k, still in km / s
     assert state.x_display_unit == "km / s"
     assert state.x_axislabel == "Velocity from 2796.352 Å [km / s]"
-    assert viewer.layers[0].state.profile[0] == pytest.approx(velocities(_wavelengths(mg)[0], 2796.352))
+    assert viewer.layers[0].state.profile[0] == pytest.approx(velocities(describe.wavelengths(mg)[0], 2796.352))
     # a session opens in km / s
     app.save_session(str(tmp_path / "kms.glu"))
     assert '"st__km / s"' in (tmp_path / "kms.glu").read_text()
@@ -2484,7 +2484,7 @@ def test_readout_gives_the_velocity_axis_value_from_the_rest_wavelength(app, mon
     def check(x, y=5):
         """The readout's velocity at pixel x of the wavelength axis, which is the velocity axis's there."""
         text = image.axes.format_coord(x, y)
-        wave = _wavelengths(si)[0][x]
+        wave = describe.wavelengths(si)[0][x]
         assert f"{wave:.3f} Å" in text
         profile.figure.canvas.draw()
         expected = tool.axis.transData.inverted().transform(profile.axes.transData.transform((wave, 0)))[0]
@@ -2493,7 +2493,7 @@ def test_readout_gives_the_velocity_axis_value_from_the_rest_wavelength(app, mon
         return float(velocity)
 
     show(si, 2, 1)  # the spectrogram, wavelength against slit
-    velocities = [check(x) for x in (0, 20, len(_wavelengths(si)[0]) - 1)]
+    velocities = [check(x) for x in (0, 20, len(describe.wavelengths(si)[0]) - 1)]
     assert velocities[0] < 0 < velocities[-1]
     set_rest(si, "1402.5")  # 'Set rest wavelength…'
     assert tool.axis.get_xlabel() == "Velocity from 1402.5 Å [km / s]"

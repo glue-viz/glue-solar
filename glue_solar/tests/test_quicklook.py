@@ -43,23 +43,20 @@ from astropy.visualization.wcsaxes.ticklabels import TickLabels
 from astropy.wcs import WCS
 
 import glue_solar
+from glue_solar import describe
 from glue_solar.conftest import MD5, OBS_B, SCAN, find_irispy_test_file
 from glue_solar.quicklook import (
     MARK,
     Coordinator,
     QuicklookImageViewer,
     _curve,
-    _half_cadence,
     _PointCurves,
     _viewers,
     coordinator,
-    nearest,
-    observation_key,
     quicklook,
-    sji_to_raster,
 )
 from glue_solar.regrid import regrid_on_time
-from glue_solar.sources import moments
+from glue_solar.sources import analysis
 from glue_solar.sources.iris import export_ecsv, link_iris, shift_pointing_iris
 from glue_solar.sources.loaders.iris import _RUNNING, image_data, keep_hpc_linked, raster_data
 from glue_solar.tests.helpers import (
@@ -159,14 +156,18 @@ def test_observation_key():
     raster.meta.update(OBSID="3860258481", STARTOBS="2014-03-29T14:09:38.830")
     aia = Data(label="aia")
     aia.meta.update(OBSID="20140329_140938_3860258481", STARTOBS="2014-03-29T14:09:38.83")
-    assert observation_key(raster) == observation_key(aia) == ("3860258481", np.datetime64("2014-03-29T14:09:38.830"))
+    assert (
+        describe.observation_key(raster)
+        == describe.observation_key(aia)
+        == ("3860258481", np.datetime64("2014-03-29T14:09:38.830"))
+    )
     rerun = Data(label="rerun")
     rerun.meta.update(OBSID="3860258481", STARTOBS="2014-03-30T09:00:00")
-    assert observation_key(rerun) != observation_key(raster)
-    assert observation_key(Data(label="plain")) is None
+    assert describe.observation_key(rerun) != describe.observation_key(raster)
+    assert describe.observation_key(Data(label="plain")) is None
     bad = Data(label="bad")
     bad.meta.update(OBSID="3860258481", STARTOBS="not a time")
-    assert observation_key(bad) is None
+    assert describe.observation_key(bad) is None
 
 
 def test_a_viewer_freed_at_exit_unregisters(app, qtbot):
@@ -220,7 +221,7 @@ def test_menu_entries_keep_the_pixel_tool(app, scans):
     coord = coordinator(app.data_collection)
 
     menu_action(raster_map, LEAD).trigger()
-    assert coord.masters == {observation_key(scan): scan}
+    assert coord.masters == {describe.observation_key(scan): scan}
     entries = ["Clear point", LEAD, "Set blink partner here", "Blink", "Blink"]
     intervals = menu_action(raster_map, "Blink interval").menu().actions()
     for action in [*(menu_action(raster_map, text) for text in entries), *intervals]:
@@ -373,7 +374,7 @@ def test_a_second_observation_is_never_coupled(app, scans, irispy_test_files):
         [find_irispy_test_file(irispy_test_files, "iris_l2_20210905_001833_3620258102_raster_t000_r00000.fits")],
         ["Si IV 1403"],
     )
-    assert observation_key(other) != observation_key(scan)
+    assert describe.observation_key(other) != describe.observation_key(scan)
     app.data_collection.extend([scan, other])
     other_map = image(app, other, 0, 1, (0, 0, 3))
     select_point(image(app, scan, 0, 1), 3, 50)
@@ -1496,27 +1497,27 @@ def seconds(*values):
 
 def test_nearest():
     times = seconds(0, 10000, 20000, 30000)
-    index, offset = nearest(seconds(4000, 5000, 6000), times)
+    index, offset = describe.nearest(seconds(4000, 5000, 6000), times)
     assert list(index) == [0, 0, 1]  # 5 s is a tie: the earlier time
     assert list(offset / np.timedelta64(1, "ms")) == [-4000, -5000, 4000]
-    assert list(nearest(seconds(4000, 5000, 6000), times[::-1])[0]) == [3, 3, 2]  # descending
-    assert list(nearest(seconds(0), times[[2, 0, 1]])[0]) == [1]  # unsorted
-    assert list(nearest(seconds(10000, 11000), times[[0, 1, 1, 2]])[0]) == [1, 1]  # equal times: the first
-    index, offset = nearest(seconds(-60000, 90000), times)  # outside: the nearest end, and how far
+    assert list(describe.nearest(seconds(4000, 5000, 6000), times[::-1])[0]) == [3, 3, 2]  # descending
+    assert list(describe.nearest(seconds(0), times[[2, 0, 1]])[0]) == [1]  # unsorted
+    assert list(describe.nearest(seconds(10000, 11000), times[[0, 1, 1, 2]])[0]) == [1, 1]  # equal times: the first
+    index, offset = describe.nearest(seconds(-60000, 90000), times)  # outside: the nearest end, and how far
     assert list(index) == [0, 3]
     assert list(offset / np.timedelta64(1, "s")) == [60, -60]
-    index, _ = nearest(seconds(12000, 18000), times[[0, 3]])  # a gap: still the nearest
+    index, _ = describe.nearest(seconds(12000, 18000), times[[0, 3]])  # a gap: still the nearest
     assert list(index) == [0, 1]
     # NaT, the gaps of data regridded on time, is never the nearest, even past the last time, and has no cadence
     gaps = np.insert(times, 1, [np.datetime64("NaT", "ns")] * 3)
-    index, offset = nearest(seconds(4000, 16000, 35000), gaps)
+    index, offset = describe.nearest(seconds(4000, 16000, 35000), gaps)
     assert list(index) == [0, 5, 6]
     assert list(offset / np.timedelta64(1, "ms")) == [-4000, 4000, -5000]
-    assert list(nearest(seconds(35000), gaps)[0]) == [6]
-    assert _half_cadence(np.append(times, [np.datetime64("NaT", "ns")] * 9)) == np.timedelta64(5, "s")
+    assert list(describe.nearest(seconds(35000), gaps)[0]) == [6]
+    assert describe.half_cadence(np.append(times, [np.datetime64("NaT", "ns")] * 9)) == np.timedelta64(5, "s")
     for bad in (np.array(["NaT", "NaT"], "datetime64[ns]"), times[:0], times.reshape(2, 2)):
         with pytest.raises(ValueError, match="reference times"):
-            nearest(seconds(0), bad)
+            describe.nearest(seconds(0), bad)
 
 
 def slit_jaw(times, like, label="SJI_1400"):
@@ -1582,7 +1583,7 @@ def test_a_raster_master_moves_the_slit_jaw_images(bare_app, qtbot, irispy_test_
     viewers["spectrogram"].state.slices = (7, *viewers["spectrogram"].state.slices[1:])
     qtbot.waitUntil(lambda: bool(heard))
     key, when, exposure = heard[-1]
-    assert (key, when) == (observation_key(raster), raster_time(raster, (7,)))
+    assert (key, when) == (describe.observation_key(raster), raster_time(raster, (7,)))
     assert exposure == raster[raster.id["Exposure time"]][7, 0, 0]
     assert [viewers[role].state.slices[-1] for role in RASTER_PANELS] == wavelengths
 
@@ -1603,7 +1604,7 @@ def test_an_aia_cutout_follows_the_time_master_and_can_be_it(bare_app, qtbot, ir
     menu_action(aia_viewer, LEAD).trigger()
     for frame in (40, 7):
         aia_viewer.state.slices = (frame, 0, 0)
-        [exposure], _ = nearest([aia[aia.id["Time"]][frame, 0, 0]], raster[raster.id["Time"]][:, 0, 0])
+        [exposure], _ = describe.nearest([aia[aia.id["Time"]][frame, 0, 0]], raster[raster.id["Time"]][:, 0, 0])
         qtbot.waitUntil(lambda exposure=exposure: viewers["spectrogram"].state.slices[0] == exposure)
         assert leads() in readout(aia_viewer)
 
@@ -1639,7 +1640,7 @@ def test_an_observation_s_aia_cutout_is_linked_as_it_loads_and_a_panel_once_tick
     qtbot.waitUntil(lambda: coord.point_on(panel) is not None)
     assert coord.point_on(panel) == pytest.approx(coord.point_on(viewers["sji"][0]))
     x, y = np.round(coord.point_on(panel)) + (0, 3)
-    index = sji_to_raster(aia, panel.state.slices[0], x, y, stack)
+    index = describe.sji_to_raster(aia, panel.state.slices[0], x, y, stack)
     assert index is not None
     assert index != tuple(s.start for s in coord.point.slices[:3])
     select_point(panel, x, y)
@@ -1782,7 +1783,7 @@ def test_a_collapse_on_the_master_and_a_follower(bare_app, qtbot, irispy_test_fi
     assert sji_viewer.state.slices[0] is collapse
     menu_action(sji_viewer, LEAD).trigger()  # a collapsed master's time is at its center
     [group] = bare_app.session.edit_subset_mode.edit_subset
-    [exposure], _ = nearest([sji[sji.id["Time"]][2, 0, 0]], raster[raster.id["Time"]][:, 0, 0])
+    [exposure], _ = describe.nearest([sji[sji.id["Time"]][2, 0, 0]], raster[raster.id["Time"]][:, 0, 0])
     qtbot.waitUntil(lambda: group.subset_state.slices[0] == slice(exposure, exposure + 1))
 
 
@@ -2175,13 +2176,13 @@ def test_the_raster_point_is_placed_once_per_frame(bare_app, qtbot, monkeypatch,
     [group] = bare_app.session.edit_subset_mode.edit_subset
     qtbot.wait(20)
     placed = []
-    place = glue_solar.quicklook._frame_pixels
+    place = describe.frame_pixels
 
     def counted(data, at, lon, lat):
         placed.append(at[0])
         return place(data, at, lon, lat)
 
-    monkeypatch.setattr(glue_solar.quicklook, "_frame_pixels", counted)
+    monkeypatch.setattr(describe, "frame_pixels", counted)
     viewers["spectrogram"].state.slices = (186, *viewers["spectrogram"].state.slices[1:])
     qtbot.waitUntil(lambda: " · Δt " in readout(sji_viewer))
     qtbot.wait(20)
@@ -2658,16 +2659,16 @@ def test_sji_to_raster_on_a_sit_and_stare(tmp_path, irispy_test_files):
             across = np.array([low[1] - high[1], high[0] - low[0]]) / np.hypot(*(high - low))  # one pixel
             for slit in (0, top // 2, top):
                 x, y = raster_point_on_sji(raster, sji, exposure, slit, frame)
-                assert sji_to_raster(sji, frame, x, y, raster) == (exposure, slit)
+                assert describe.sji_to_raster(sji, frame, x, y, raster) == (exposure, slit)
                 # beside the slit: its row
-                assert sji_to_raster(sji, frame, *np.add((x, y), 5 * across), raster) == (exposure, slit)
+                assert describe.sji_to_raster(sji, frame, *np.add((x, y), 5 * across), raster) == (exposure, slit)
             for end, inner in ((0, 1), (top, top - 1)):  # past either end of the slit: outside the raster
                 pixel = past(raster, sji, (exposure, end), (exposure, inner), frame)
-                assert sji_to_raster(sji, frame, *pixel, raster) is None
+                assert describe.sji_to_raster(sji, frame, *pixel, raster) is None
     # a day later: no exposure within half a cadence
     x, y = raster_point_on_sji(bundled, sji, 0, 9, 0)
     sji.update_components({sji.id["Time"]: sji[sji.id["Time"]] + np.timedelta64(1, "D")})
-    assert sji_to_raster(sji, 0, x, y, bundled) is None
+    assert describe.sji_to_raster(sji, 0, x, y, bundled) is None
 
 
 def test_sji_to_raster_on_a_scanning_raster_and_a_stack(tmp_path, irispy_test_files):
@@ -2680,12 +2681,18 @@ def test_sji_to_raster_on_a_scanning_raster_and_a_stack(tmp_path, irispy_test_fi
         for step in (0, last // 2, last):
             for slit in (0, top // 2, top):
                 x, y = raster_point_on_sji(raster, sji, step, slit, frame)
-                assert sji_to_raster(sji, frame, x, y, raster) == (step, slit)
+                assert describe.sji_to_raster(sji, frame, x, y, raster) == (step, slit)
         # the nearest step and slit row
-        assert sji_to_raster(sji, frame, *raster_point_on_sji(raster, sji, 10.4, 20.4, frame), raster) == (10, 20)
-        assert sji_to_raster(sji, frame, *raster_point_on_sji(raster, sji, 10.6, 20.6, frame), raster) == (11, 21)
+        assert describe.sji_to_raster(sji, frame, *raster_point_on_sji(raster, sji, 10.4, 20.4, frame), raster) == (
+            10,
+            20,
+        )
+        assert describe.sji_to_raster(sji, frame, *raster_point_on_sji(raster, sji, 10.6, 20.6, frame), raster) == (
+            11,
+            21,
+        )
         for end, inner in ((0, 1), (last, last - 1)):  # past the first or last step: outside the raster
-            assert sji_to_raster(sji, frame, *past(raster, sji, (end, 9), (inner, 9), frame), raster) is None
+            assert describe.sji_to_raster(sji, frame, *past(raster, sji, (end, 9), (inner, 9), frame), raster) is None
 
     # a stack of the scan and a copy right after it drifting north: the scan nearest the frame's time at the step, and
     # the slit row in that scan's own pointing
@@ -2701,14 +2708,14 @@ def test_sji_to_raster_on_a_scanning_raster_and_a_stack(tmp_path, irispy_test_fi
         for step in (0, last):
             scans.append(expected_nearest(frames[frame], times[:, step, 0, 0]))
             x, y = raster_point_on_sji(alone[scans[-1]], sji, step, 9, frame)
-            assert sji_to_raster(sji, frame, x, y, stack) == (scans[-1], step, 9)
+            assert describe.sji_to_raster(sji, frame, x, y, stack) == (scans[-1], step, 9)
     assert set(scans) == {0, 1}
     # a day later: the later scan, however far; a scan's steps are places
     sji.update_components({sji.id["Time"]: sji[sji.id["Time"]] + np.timedelta64(1, "D")})
     x, y = raster_point_on_sji(alone[1], sji, 0, 9, 0)
-    assert sji_to_raster(sji, 0, x, y, stack) == (1, 0, 9)
+    assert describe.sji_to_raster(sji, 0, x, y, stack) == (1, 0, 9)
     x, y = raster_point_on_sji(raster, sji, 0, 9, 0)
-    assert sji_to_raster(sji, 0, x, y, raster) == (0, 9)
+    assert describe.sji_to_raster(sji, 0, x, y, raster) == (0, 9)
 
 
 @pytest.mark.remote_data
@@ -2726,7 +2733,7 @@ def test_a_click_on_a_first_or_last_step_s_slit_reaches_it(irispy_data):
         scan, step = (int(i) for i in np.unravel_index(np.argmin(np.abs(times - when)), times.shape))
         taken[scan, step] = frame
         x, y = raster_point_on_sji(stack, sji, step, row, frame, scan)
-        if sji_to_raster(sji, frame, x, y, stack) != (scan, step, row):
+        if describe.sji_to_raster(sji, frame, x, y, stack) != (scan, step, row):
             lost.append((scan, step))
     assert {step for _, step in taken} == {0, 2}
     assert lost == []
@@ -2735,7 +2742,7 @@ def test_a_click_on_a_first_or_last_step_s_slit_reaches_it(irispy_data):
         for end, inner, frame in ((0, 1, taken[scan, 0]), (3, 2, taken[scan, 2])):
             at, beside = (np.array(raster_point_on_sji(stack, sji, step, row, frame, scan)) for step in (end, inner))
             for steps_past, index in ((0.25, (scan, end, row)), (0.45, (scan, end, row)), (0.55, None)):
-                assert sji_to_raster(sji, frame, *(at + steps_past * (at - beside)), stack) == index
+                assert describe.sji_to_raster(sji, frame, *(at + steps_past * (at - beside)), stack) == index
 
 
 def draw_region(app, viewer, roi):
@@ -2934,7 +2941,7 @@ def test_a_slit_jaw_region_is_a_new_subset(bare_app, monkeypatch, tmp_path, iris
     assert placed == [raster.shape[0] * raster.shape[1]]
     # a Pixel click on the slit-jaw image still moves the point to the raster there, and leaves the region
     drawn = region.subset_state
-    index = sji_to_raster(sji, frame, 15, 15, raster)
+    index = describe.sji_to_raster(sji, frame, 15, 15, raster)
     assert index is not None
     select_point(sji_viewer, 15, 15)
     assert point.subset_state.reference_data is raster
@@ -3075,15 +3082,15 @@ def test_the_browser_and_the_data_action_open_the_chosen_observation(qtbot, monk
     assert app.tab_count == 2
     shown = app.viewers[-1][0].state.reference_data
     browsed = app.data_collection[0]
-    assert observation_key(shown) == observation_key(browsed)
+    assert describe.observation_key(shown) == describe.observation_key(browsed)
     # both observations loaded: 'Quicklook…' opens the observation of the data chosen
     browse(qtbot, app, monkeypatch, folder, [0])
-    keys = [observation_key(data) for data in app.data_collection]
+    keys = [describe.observation_key(data) for data in app.data_collection]
     second = sorted(set(keys), key=keys.index)[1]
     tabs = app.tab_count
     quicklook_cube(app.data_collection[keys.index(second)], app.data_collection)
     assert app.tab_count == tabs + 1
-    assert observation_key(app.viewers[-1][0].state.reference_data) == second
+    assert describe.observation_key(app.viewers[-1][0].state.reference_data) == second
 
 
 def test_startup_shows_the_first_raster_file(qtbot, monkeypatch, irispy_test_files):
@@ -3657,7 +3664,7 @@ def test_what_moves_on_go_to_utc(bare_app, qtbot, monkeypatch, irispy_test_files
     # nothing within half the master's cadence, typed in the slit-jaw viewer, whose last frame is within half its own;
     # an unreadable time; a viewer of data without IRIS times, even of the observation, as an AIA cutout: nothing
     # moves, and glue says why
-    assert times[-1] + np.timedelta64(60, "s") - frames[-1] <= _half_cadence(frames)
+    assert times[-1] + np.timedelta64(60, "s") - frames[-1] <= describe.half_cadence(frames)
     plain = Data(label="plain", x=np.zeros((3, 4, 5)))
     plain.meta.update(OBSID=raster.meta["OBSID"], STARTOBS=raster.meta["STARTOBS"])
     bare_app.data_collection.append(plain)
@@ -4355,11 +4362,11 @@ def test_what_moves_on_a_negative_step_raster(bare_app, qtbot, irispy_data):
 def clicked(viewer, raster, step, slit):
     """
     The slit-jaw pixel a Pixel click takes nearest raster pixel ``step, slit`` (at a stack's scan 0) in the frame the
-    viewer shows, and the raster pixel `sji_to_raster` finds there.
+    viewer shows, and the raster pixel `describe.sji_to_raster` finds there.
     """
     sji, frame = viewer.state.reference_data, viewer.state.slices[0]
     x, y = np.round(raster_point_on_sji(raster, sji, step, slit, frame))
-    return (x, y), sji_to_raster(sji, frame, x, y, raster)
+    return (x, y), describe.sji_to_raster(sji, frame, x, y, raster)
 
 
 @pytest.mark.parametrize("arcsec", [0.3, -0.3])  # per step: a scanning raster, and one of negative step (D10)
@@ -4591,7 +4598,7 @@ def test_redo_of_a_slit_jaw_click_puts_back_its_raster_pixel(bare_app, qtbot, ir
     qtbot.wait(20)
     frame = sji_viewer.state.slices[0]
     assert sliders(bare_app, viewers)["point"] == (raster.label, (index[0] + 3, index[1], None))
-    assert sji_to_raster(sji, frame, x, y, raster) not in (index, None)
+    assert describe.sji_to_raster(sji, frame, x, y, raster) not in (index, None)
     undo.trigger()
     qtbot.wait(20)
     assert sliders(bare_app, viewers)["point"] == before
@@ -4700,7 +4707,7 @@ def test_shift_pointing_moves_the_readout_and_what_the_raster_meets(
     # a raster window shifts with the other windows of its file
     assert shift(monkeypatch, window, collection, (0.5, 0.25)) == (0, 0)
     assert raster.coords.pointing_offset == window.coords.pointing_offset == (0.5, 0.25)
-    assert moments._dataset(window, "x").coords.pointing_offset == (0.5, 0.25)
+    assert analysis.dataset(window, "x").coords.pointing_offset == (0.5, 0.25)
     # the dialog opens at the offset, and 0, 0 takes it away
     assert shift(monkeypatch, sji, collection, (0, 0)) == (2, -1)
     assert sji.coords.pixel_to_world_values(x, y, frame)[:2] == (lon, lat)
@@ -6281,7 +6288,7 @@ def test_what_moves_on_a_blink(bare_app, qtbot, irispy_test_files):
     raster_map = viewers["map"]
     tool, coord = raster_map.toolbar.tools["solar:coordinate"], coordinator(bare_app.data_collection)
     wavelength = raster_map.state.slices[2]
-    master = coord._master(observation_key(mg))
+    master = coord._master(describe.observation_key(mg))
 
     def flip():
         tool._flip()
@@ -6292,7 +6299,7 @@ def test_what_moves_on_a_blink(bare_app, qtbot, irispy_test_files):
     assert raster_map.state.reference_data is si4
     assert changes(bare_app, qtbot, viewers, flip) == {"map": (None, None, wavelength)}
     assert raster_map.state.reference_data is mg
-    assert coord._master(observation_key(mg)) is master
+    assert coord._master(describe.observation_key(mg)) is master
 
 
 def test_blink_in_one_cube(bare_app, qtbot, irispy_test_files):
@@ -6375,7 +6382,7 @@ def test_blink_two_slit_jaw_channels_in_playback(bare_app, qtbot, irispy_test_fi
             data = state.reference_data
             frames = data[data.id["Time"]][:, 0, 0]
             nearest = expected_nearest(times[exposure], frames)
-            if abs(frames[nearest] - times[exposure]) <= _half_cadence(frames):
+            if abs(frames[nearest] - times[exposure]) <= describe.half_cadence(frames):
                 left[data] = nearest
             assert state.slices[0] == left[data]
             assert (state.x_min, state.x_max, state.y_min, state.y_max) == zoom

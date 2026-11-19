@@ -8,8 +8,8 @@ from glue.core.component import Component
 
 import astropy.units as u
 
-from glue_solar.quicklook import _wavelengths
-from glue_solar.sources.moments import _check, _dataset, _read, _unit
+from glue_solar import describe
+from glue_solar.sources import analysis
 
 __all__ = ["doppler_image"]
 
@@ -20,15 +20,15 @@ VELOCITIES = (10.0, 20.0, 30.0, 40.0, 50.0)
 def _wings(data, rest, velocities):
     """
     The wavelength pixels of ``data`` read and, for the red wing at each of ``velocities`` and then the blue, the pixel
-    below it among them and its weight in a linear interpolation; raises why for data `_check` refuses, a velocity that
-    is not positive or a wing outside the window.
+    below it among them and its weight in a linear interpolation; raises why for data `analysis.check` refuses, a
+    velocity that is not positive or a wing outside the window.
     """
-    _check(data)
+    analysis.check(data)
     if not (len(velocities) and np.all(np.asarray(velocities, float) > 0)):  # NaN too
         raise ValueError(f"The velocities must be positive, not {', '.join(f'{v:g}' for v in velocities)} km / s.")
     speeds = np.concatenate([velocities, np.negative(velocities)])
     targets = (speeds * u.km / u.s).to_value(u.AA, equivalencies=u.doppler_optical(rest * u.AA))
-    wavelengths, _ = _wavelengths(data)
+    wavelengths, _ = describe.wavelengths(data)
     below = np.clip(np.searchsorted(wavelengths, targets, side="right") - 1, 0, wavelengths.size - 2)
     weight = (targets - wavelengths[below]) / np.diff(wavelengths)[below]
     outside = (weight < 0) | (weight > 1)
@@ -43,15 +43,15 @@ def _wings(data, rest, velocities):
 
 
 def _doppler(data, rest, velocities, normalized, wings, unit):
-    """`doppler_image` given its `_wings` and ``unit`` the unit of the values read (`_read`); on any thread."""
+    """`doppler_image` given its `_wings` and ``unit`` the unit of the values read (`analysis.read`); on any thread."""
     crop, below, weight = wings
     planes = []
     for *scan, step in np.ndindex(data.shape[:-2]):  # a step at a time
-        values, _, saturated = _read(data, (*scan, slice(step, step + 1), slice(None)), crop)
+        values, _, saturated = analysis.read(data, (*scan, slice(step, step + 1), slice(None)), crop)
         values = np.where(saturated, np.nan, values)  # NaN where either sample is missing or saturated
         planes.append(values[..., below] * (1 - weight) + values[..., below + 1] * weight)
     red, blue = np.split(np.concatenate(planes).reshape(*data.shape[:-1], -1), 2, axis=-1)
-    doppler = _dataset(data, f"{data.label} Doppler image {rest}")
+    doppler = analysis.dataset(data, f"{data.label} Doppler image {rest}")
     doppler.meta.update(doppler_rest=rest, doppler_velocities=tuple(velocities), doppler_sign="red - blue")
     difference = red - blue
     for k, v in enumerate(velocities):
@@ -96,4 +96,4 @@ def doppler_image(data, rest, velocities=VELOCITIES, normalized=False):
         For other data than an IRIS raster window or stack, a velocity that is not positive, or a wing outside the
         window.
     """
-    return _doppler(data, rest, velocities, normalized, _wings(data, rest, velocities), _unit(data))
+    return _doppler(data, rest, velocities, normalized, _wings(data, rest, velocities), analysis.unit(data))

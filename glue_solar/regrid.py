@@ -19,8 +19,9 @@ from scipy.interpolate import make_interp_spline
 from astropy.wcs import WCS
 from astropy.wcs.wcsapi.wrappers import BaseWCSWrapper, SlicedLowLevelWCS
 
+from glue_solar import describe
 from glue_solar.glue_patches import _application, layer_action
-from glue_solar.quicklook import _cadence, _placeable, _role, _spectral_axes, _time_axis, _timed, _times, nearest
+from glue_solar.sources import analysis
 from glue_solar.sources.loaders.iris import (
     _SJI_POINTING,
     MISSING_VALUES,
@@ -34,7 +35,6 @@ from glue_solar.sources.loaders.iris import (
     keep_hpc_linked,
 )
 from glue_solar.sources.loaders.lazy import RawComponent, RawStack
-from glue_solar.sources.moments import SLAB, _accepted, _form, _start
 
 __all__ = ["north_up", "north_up_iris", "rebin", "rebin_iris", "regrid_iris", "regrid_on_time"]
 
@@ -85,8 +85,8 @@ def _gather(values, index, gap):
 def _check_timed(data):
     """Raise why ``data`` cannot be regridded on time (`regrid_on_time`)."""
     # the time axis is the first of the others; an SST cube is not on IRIS's coordinates, as for 'IRIS: rebin…'
-    if not _timed(data) or _time_axis(data) is None or not isinstance(data.coords, _GlueWCS):
-        if _role(data) == "raster":
+    if not describe.timed(data) or describe.time_axis(data) is None or not isinstance(data.coords, _GlueWCS):
+        if describe.role(data) == "raster":
             raise ValueError(
                 f"{data.label} cannot be regridded on time: the steps of a scanning raster are places on the Sun, not "
                 "times. Its scans can be, stacked with 'Stack sequential raster scans' in the observation browser."
@@ -114,14 +114,15 @@ def regrid_on_time(data):
         raster, slit-jaw image, AIA cutout or stack, or one with fewer than two different times.
     """
     _check_timed(data)
-    times = _times(data, data.shape[1] // 2)  # a stack's scans by their middle step, as the quicklook times them
-    step = _cadence(times)
+    # a stack's scans by their middle step, as the quicklook times them
+    times = describe.times(data, data.shape[1] // 2)
+    step = describe.cadence(times)
     if not step:
         raise ValueError(f"{data.label} needs two different times to be regridded on time.")
     valid = ~np.isnat(times)
     start = times[valid].min()
     grid = start + np.arange(int(np.ceil((times[valid].max() - start) / step)) + 1) * step
-    index, offset = nearest(grid, times)
+    index, offset = describe.nearest(grid, times)
     index[np.abs(offset) > REACH * step] = -1
     # the source's pixel position at each pixel's time, and its last for a last pixel past its last time
     positions = np.interp((grid - start).view("int64"), (times[valid] - start).view("int64"), np.flatnonzero(valid))
@@ -202,7 +203,7 @@ class _NorthUp(BaseWCSWrapper):
 
 def _check_pointed(data):
     """Raise why ``data`` has no `north_up` grid."""
-    if data.ndim != 3 or not _placeable(data) or "CDELT1" not in data.meta:
+    if data.ndim != 3 or not describe.placeable(data) or "CDELT1" not in data.meta:
         raise ValueError(f"{data.label} is not a slit-jaw image, AIA cutout or SOT cube, whose frames have a pointing.")
 
 
@@ -272,7 +273,7 @@ def north_up_iris(data, data_collection):
 def _check(data):
     """Raise why ``data`` is not an IRIS dataset, which can be rebinned."""
     # not a slit-jaw image's bursts' labels, which keep its meta, Time and coordinates (D61)
-    if not _timed(data) or not isinstance(data.coords, _GlueWCS) or "bursts_sigma_factor" in data.meta:
+    if not describe.timed(data) or not isinstance(data.coords, _GlueWCS) or "bursts_sigma_factor" in data.meta:
         raise ValueError(f"{data.label} is not an IRIS raster window, slit-jaw image, AIA cutout or SOT cube.")
 
 
@@ -325,7 +326,9 @@ def rebin(data, bins):
     # slabs of whole bins along the first axis, or a stack's raster steps, a bin of scans at a time
     axis, cid = data.ndim - 3, data.main_components[0]
     end = covered[axis].stop
-    rows = bins[axis] * max(1, SLAB // (math.prod(bins[: axis + 1]) * math.prod(p.stop for p in covered[axis + 1 :])))
+    rows = bins[axis] * max(
+        1, analysis.SLAB // (math.prod(bins[: axis + 1]) * math.prod(p.stop for p in covered[axis + 1 :]))
+    )
     groups = [(slice(scan, scan + bins[0]),) for scan in range(0, covered[0].stop, bins[0])] if axis else [()]
     values = []
     for group in groups:
@@ -365,15 +368,15 @@ def _ask(data):
     The pixels per bin typed for each axis of ``data``, at first 2 along its last two axes but wavelength, the map or
     image, and 1 along the others; or None for Cancel.
     """
-    dialog, form = _form(f"Rebin {data.label}")
-    image = sorted(set(range(data.ndim)) - _spectral_axes(data))[-2:]
+    dialog, form = analysis.form(f"Rebin {data.label}")
+    image = sorted(set(range(data.ndim)) - describe.spectral_axes(data))[-2:]
     boxes = []
     for axis, (cid, length) in enumerate(zip(data.world_component_ids, data.shape)):
         box = QtWidgets.QSpinBox(objectName=f"axis {axis}", minimum=1, maximum=length)
         box.setValue(2 if axis in image else 1)
         form.addRow(f"{cid.label} ({length} pixels):", box)
         boxes.append(box)
-    return tuple(box.value() for box in boxes) if _accepted(dialog, form) else None
+    return tuple(box.value() for box in boxes) if analysis.accepted(dialog, form) else None
 
 
 @layer_action(
@@ -385,8 +388,8 @@ def _ask(data):
 )
 @messagebox_on_error("Could not rebin")
 def rebin_iris(data, data_collection):
-    """Add ``data`` binned by the pixels typed for each axis (`rebin`), in the background (`_start`)."""
+    """Add ``data`` binned by the pixels typed for each axis (`rebin`), in the background (`analysis.start`)."""
     _check(data)  # before asking
     bins = _ask(data)
     if bins is not None:
-        _start(data_collection, f"Rebinning {data.label}…", "Could not rebin", rebin, data, bins)
+        analysis.start(data_collection, f"Rebinning {data.label}…", "Could not rebin", rebin, data, bins)

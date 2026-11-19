@@ -28,8 +28,8 @@ from qtpy.QtCore import Qt
 
 import astropy.units as u
 
+from glue_solar import describe
 from glue_solar.glue_patches import layer_action
-from glue_solar.quicklook import _role, _spectral_axes, _wavelengths, _window
 
 __all__ = [
     "DopplerConverter",
@@ -91,7 +91,7 @@ def lines_of(data):
     vacuum as its ``meta['WAVEREF']``, 'Air' or 'Vacuum', says, as DKIST's headers give it, or in air on an SST cube,
     as SSTRED's wavelengths are (D107), else IRIS's (`main_lines`).
     """
-    sst = "air" if _role(data) == "sst" else ""
+    sst = "air" if describe.role(data) == "sst" else ""
     column = {"air": 1, "vacuum": 2}.get(str(data.meta.get("WAVEREF", sst)).lower())
     return main_lines() if column is None else tuple((line[0], line[column]) for line in GROUND_LINES)
 
@@ -211,7 +211,7 @@ def _is_wavelength(data, cid):
     world axis ``world_n_dim - 1 - i``, another one in a gWCS of more world axes than pixel axes, such as dkist's own,
     whose unit then raised in glue's x_att callback (D102).
     """
-    axes = _spectral_axes(data)
+    axes = describe.spectral_axes(data)
     if len(axes) != 1 or cid is not data.world_component_ids[min(axes)]:
         return False
     coords = data.coords  # a path diagram's too, which has no get_component
@@ -256,7 +256,9 @@ class LinesInRangeTool(Tool):
         low, high = sorted(ends.to_value(u.AA))
         ours = lines_of(data)
         iris = ours is main_lines()
-        title = f"{'IRIS' if iris else 'SST' if _role(data) == 'sst' else 'DKIST'} lines in {low:.2f}–{high:.2f} Å"
+        title = (
+            f"{'IRIS' if iris else 'SST' if describe.role(data) == 'sst' else 'DKIST'} lines in {low:.2f}–{high:.2f} Å"
+        )
         self.dialog = dialog = QtWidgets.QDialog(self.viewer, windowTitle=title)
         region, abundance, listing = QtWidgets.QComboBox(), QtWidgets.QComboBox(), QtWidgets.QListWidget()
         region.addItems(_REGIONS)
@@ -306,7 +308,7 @@ class LinesInRangeTool(Tool):
 
 def _within(data):
     """The main lines within the wavelengths of ``data``, which has one wavelength axis, as (name, wavelength)."""
-    wavelengths, _ = _wavelengths(data)
+    wavelengths, _ = describe.wavelengths(data)
     return [(name, wave) for name, wave in lines_of(data) if np.nanmin(wavelengths) <= wave <= np.nanmax(wavelengths)]
 
 
@@ -320,15 +322,15 @@ def rest_wavelength(data):
     """
     if data.meta.get("rest_wavelength") is not None:
         return float(data.meta["rest_wavelength"])
-    if len(_spectral_axes(data)) != 1:
+    if len(describe.spectral_axes(data)) != 1:
         return None
     within = _within(data)
     if len(within) > 1:
         dkist = "LINEWAV" in data.meta
-        title = str(data.meta.get("WAVEBAND") if dkist else _window(data)[0])
+        title = str(data.meta.get("WAVEBAND") if dkist else describe.window(data)[0])
         try:
-            if _role(data) == "sst":  # its line core's, the tuning `sst_data` takes at its line
-                named = _wavelengths(data)[0][data.coords.core]
+            if describe.role(data) == "sst":  # its line core's, the tuning `sst_data` takes at its line
+                named = describe.wavelengths(data)[0][data.coords.core]
             else:
                 named = float(data.meta["LINEWAV"]) * 10 if dkist else float(title.split()[-1])  # DKIST's in nm
         except (IndexError, ValueError):  # no name, or no wavelength in it
@@ -514,7 +516,7 @@ def _wavelength(text):
 
 def _check_wavelength(data):
     """Raise why ``data`` has not one wavelength axis."""
-    if len(_spectral_axes(data)) != 1:
+    if len(describe.spectral_axes(data)) != 1:
         raise ValueError(f"{data.label} has no wavelength axis.")
 
 

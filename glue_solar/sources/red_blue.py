@@ -8,7 +8,7 @@ from glue.core.component import Component
 
 import astropy.units as u
 
-from glue_solar.sources.moments import _check, _cube, _dataset, _slabs, _window
+from glue_solar.sources import analysis
 
 __all__ = ["red_blue_asymmetry"]
 
@@ -23,9 +23,11 @@ STEP = 5.0
 
 
 def _taken(data, rest, wavelengths):
-    """The `_window` of the wavelengths of ``data`` within ``wavelengths``, below and above ``rest``, in Angstrom."""
+    """
+    The `analysis.window` of the wavelengths of ``data`` within ``wavelengths``, below and above ``rest``, in Angstrom.
+    """
     below, above = wavelengths
-    return _window(data, (rest - below, rest + above), f"{below} Å below and {above} Å above {rest} Å")
+    return analysis.window(data, (rest - below, rest + above), f"{below} Å below and {above} Å above {rest} Å")
 
 
 def _red_blue(data, rest, wavelengths, velocities, step, crop, unit):
@@ -37,9 +39,9 @@ def _red_blue(data, rest, wavelengths, velocities, step, crop, unit):
 
     maps = {}
     # irispy measures each pixel on its own, so a slab of steps gives what the whole window would
-    for rows, values, _, saturated in _slabs(data, crop):
+    for rows, values, _, saturated in analysis.slabs(data, crop):
         slab = calculate_red_blue_asymmetry(
-            _cube(data, values, rows, crop, unit, saturated),
+            analysis.cube(data, values, rows, crop, unit, saturated),
             rest_wavelength=rest * u.AA,
             velocity_range=velocities * u.km / u.s,
             dv=step * u.km / u.s,
@@ -47,7 +49,7 @@ def _red_blue(data, rest, wavelengths, velocities, step, crop, unit):
         )
         for name, part in slab.items():
             maps.setdefault(name, []).append(part.data)
-    asymmetry = _dataset(data, f"{data.label} red-blue asymmetry {rest}")
+    asymmetry = analysis.dataset(data, f"{data.label} red-blue asymmetry {rest}")
     asymmetry.meta.update(
         red_blue_rest=rest,
         red_blue_wavelengths=tuple(wavelengths),
@@ -94,5 +96,5 @@ def red_blue_asymmetry(data, rest, wavelengths=WAVELENGTHS, velocities=VELOCITIE
         For other data than an IRIS raster window or stack, or one with no wavelength within ``wavelengths`` of
         ``rest``.
     """
-    _check(data)
+    analysis.check(data)
     return _red_blue(data, rest, wavelengths, velocities, step, *_taken(data, rest, wavelengths))
