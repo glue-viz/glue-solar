@@ -709,6 +709,25 @@ def test_toolbar_menus_hold_the_mouse_modes_and_display_tools(app, qtbot, monkey
     assert toolbar.active_tool is pixel
 
 
+def test_a_menu_entry_leaves_an_unfinished_path_and_its_mouse_modes_hint(app):
+    cube = Data(label="cube", flux=np.arange(60.0).reshape(3, 4, 5))
+    app.data_collection.append(cube)
+    viewer = app.new_data_viewer(ImageViewer, data=cube)
+    toolbar = viewer.toolbar
+    toolbar.active_tool = "solar:path"
+    path = toolbar.active_tool
+    for x, y in ((1, 1), (3, 2)):  # two vertices, and no Enter yet
+        mouse(viewer, "button_press_event", x, y)
+        mouse(viewer, "button_release_event", x, y)
+    drawn = np.array(path.roi().to_polygon())
+    assert drawn.shape == (2, 2)
+    for tool_id in ("solar:hide_axes", "solar:clear_point"):  # an entry of the View menu, and of the Coordinate menu
+        toolbar.actions[tool_id].trigger()
+        assert toolbar.active_tool is path
+        np.testing.assert_array_equal(path.roi().to_polygon(), drawn)
+        assert viewer.statusBar().currentMessage() == path.status_tip
+
+
 def margins(viewer):
     """The colors the canvas draws left of and below the viewer's axes, where WCSAxes puts its ticks and labels."""
     viewer.figure.canvas.draw()

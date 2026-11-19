@@ -43,7 +43,7 @@ from glue.plugins.tools.path_slicer.path_sliced_data_links import (
     link_path_sliced_to_parent,
 )
 from glue.utils import as_variable_name, unbroadcast
-from glue.viewers.common.tool import SimpleToolMenu, Tool
+from glue.viewers.common.tool import CheckableTool, SimpleToolMenu, Tool
 from glue.viewers.image.composite_array import CompositeArray
 from glue.viewers.image.layer_artist import ImageLayerArtist
 from glue.viewers.image.pixel_selection_mode import PixelSelectionTool
@@ -143,8 +143,9 @@ def _throttle_slice_sliders(viewer):
 
 def _keep_mouse_mode(viewer):
     """
-    Switch the viewer's mouse mode, such as Pixel, back on: glue-qt ends it before running any plain
-    toolbar button or menu entry. The mode is the one the viewer's Coordinate tool remembers.
+    Switch the viewer's mouse mode, such as Pixel, back on: glue-qt's toolbar ends it before running any plain button
+    or entry of its own menus, as Save's; `_ToolMenu` runs its entries itself. The mode is the one the viewer's
+    Coordinate tool remembers.
     """
     mode = viewer.toolbar.tools["solar:coordinate"].mode
     if mode is not None:
@@ -392,7 +393,6 @@ class FrameTimeTool(Tool, HubListener):
 
     def activate(self):
         self.label.setHidden(not self.label.isHidden())
-        _keep_mouse_mode(self.viewer)
 
     def close(self):
         self._forget()
@@ -565,7 +565,6 @@ class CursorReadoutTool(Tool):
         self.shown = not self.shown
         if not self.shown:
             self.viewer.set_status("")
-        _keep_mouse_mode(self.viewer)
 
     def close(self):
         self.viewer.axes.figure.canvas.mpl_disconnect(self._motion)
@@ -611,7 +610,6 @@ class HideAxesTool(Tool):
 
     def activate(self):
         self.viewer.state.show_axes = not self.viewer.state.show_axes
-        _keep_mouse_mode(self.viewer)
 
     def close(self):
         self.viewer.state.remove_callback("show_axes", self._show)
@@ -655,7 +653,6 @@ class PerFrameLimitsTool(Tool):
         per_frame = any(layer.stretch_global for layer in layers)
         for layer in layers:
             layer.stretch_global = not per_frame
-        _keep_mouse_mode(self.viewer)
 
     def close(self):
         self.viewer.state.remove_callback("reference_data", self._whole_cube_again)
@@ -712,7 +709,6 @@ class BandTool(Tool):
             state = self.viewer.state
             axes = self._axes(state.slices)  # the validator makes the band about the slider's index
             state.slices = tuple(int(getattr(s, "center", s)) if i in axes else s for i, s in enumerate(state.slices))
-        _keep_mouse_mode(self.viewer)
 
     def close(self):
         self.viewer.state.remove_callback("slices", self._band)
@@ -829,7 +825,6 @@ class PhysicalAspectTool(Tool):
                 with delay_callback(state, "x_min", "x_max", "y_min", "y_max"):  # the image fills the axes again
                     state.x_min, state.x_max = max(state.x_min, -0.5), min(state.x_max, nx - 0.5)
                     state.y_min, state.y_max = max(state.y_min, -0.5), min(state.y_max, ny - 0.5)
-        _keep_mouse_mode(self.viewer)
 
     def close(self):
         state = self.viewer.state
@@ -939,7 +934,6 @@ class ColorBarTool(Tool):
         axes.resizer.margins = [left, right + (_BAR_ROOM if shown else -_BAR_ROOM), bottom, top]
         canvas = self.viewer.figure.canvas  # glue places the axes and fits their aspect at a resize
         canvas.callbacks.process("resize_event", ResizeEvent("resize_event", canvas))
-        _keep_mouse_mode(self.viewer)
 
 
 @viewer_tool
@@ -961,7 +955,6 @@ class RasterOverlaysTool(Tool):
 
     def activate(self):
         coordinator(self.viewer._data).toggle_overlays(observation_key(self.viewer.state.reference_data), self.shown)
-        _keep_mouse_mode(self.viewer)
 
     def offered(self):
         """Whether a raster of the viewer's observation is loaded, which the View menu checks as it opens."""
@@ -1147,7 +1140,6 @@ class DKISTFootprintsTool(Tool, HubListener):
         if _accepted(dialog, form):
             self.shown = [data for group, tick in zip(groups, ticks) if tick.isChecked() for data in group]
             self._draw()
-        _keep_mouse_mode(self.viewer)
 
     def close(self):
         for prop in _WATCHED:
@@ -1994,8 +1986,9 @@ class _CoordinateEntry(Tool):
         self.menu = menu
 
     def activate(self):
+        mode = self.viewer.toolbar.active_tool
         self.run(self.menu.coordinator)
-        _keep_mouse_mode(self.viewer)
+        self.viewer.toolbar.active_tool = mode  # glue-qt ends it as a viewer the entry opens takes the focus
 
     def offered(self):
         """Whether the entry can act on the viewer as it is now, which the menu checks as it opens."""
@@ -2702,7 +2695,8 @@ class _ToolMenu(SimpleToolMenu):
     """
     glue's tool menu, its tools also in the toolbar's ``tools`` and ``actions`` as a button's are (#222): an entry shows
     while ``enabled``, as glue-qt 0.4.2 does for buttons only (glue-viz/glue-qt#72, draft), from ``offered`` as the menu
-    opens, with a check mark from ``checked`` and its key while the toolbar has the keyboard.
+    opens, with a check mark from ``checked`` and its key while the toolbar has the keyboard; a plain entry runs its
+    tool itself, where glue-qt's toolbar would first end the mouse mode, and an unfinished path with it.
     """
 
     def __init__(self, viewer, subtools=None):
@@ -2714,6 +2708,9 @@ class _ToolMenu(SimpleToolMenu):
         menu = toolbar.widgetForAction(toolbar.actions[self.tool_id]).menu()
         for tool, action in zip(self.subtools, menu.actions(), strict=True):
             toolbar.tools[tool.tool_id], toolbar.actions[tool.tool_id] = tool, action
+            if not isinstance(tool, CheckableTool):  # not through glue-qt's toolbar, so the mouse mode stays
+                action.triggered.disconnect()
+                action.triggered.connect(lambda _checked, tool=tool: tool.activate())
 
             def show(enabled, action=action):
                 action.setVisible(enabled)

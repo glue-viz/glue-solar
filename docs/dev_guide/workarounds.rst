@@ -298,16 +298,18 @@ glue-qt
 - **glue-qt's Slice Extraction left off Image viewers**: its ``pv_slicer`` plugin ``setup`` made a no-op and the tool
   filtered from ``ImageViewer.tools``, so Path diagram is the one path tool (``setup``, D90). Always on. Kept by
   decision (D90).
-- **A viewer's mouse mode, such as Pixel, turned back on after each plain toolbar button or menu entry of
-  glue-solar's** (``tools._keep_mouse_mode``, the mode the viewer's Coordinate tool remembers, #92), as glue-qt's
-  toolbar ends the active mode before it runs any tool that is not a mode. Always on. Retired by glue-qt's toolbar
-  leaving the active mouse mode on as a plain tool runs (report candidate).
+- **A viewer's mouse mode, such as Pixel, turned back on after 'Save frames or movie…'**, an entry of glue-qt's Save
+  menu (``tools._keep_mouse_mode``, the mode the viewer's Coordinate tool remembers, #92), as glue-qt's toolbar ends
+  the active mode before it runs any tool that is not a mode. Always on. Retired by glue-qt's toolbar leaving the
+  active mouse mode on as a plain tool runs (report candidate).
 - **A tool menu's entries treated as buttons are**: each subtool and its menu action written into the toolbar's
   ``tools`` and ``actions``, the entry shown while its tool is ``enabled``, check-marked from ``checked``, and its key
-  a ``QShortcut`` of the toolbar, as glue-qt's own, on the entry, acts only while the menu's button has the keyboard
-  (``tools._ToolMenu``, #156, #222). Always on (``CoordinateTool``, ``ModesTool``, ``ViewTool``). Retired by glue-qt
-  #72 for the entries shown while ``enabled``; for the rest by glue-qt's toolbar listing subtools in ``tools`` and
-  ``actions``, with check marks and keys of the toolbar's (report candidate).
+  a ``QShortcut`` of the toolbar, as glue-qt's own, on the entry, acts only while the menu's button has the keyboard;
+  and a plain entry's action connected to its tool in place of glue-qt's toolbar, which ends the active mouse mode
+  first, and an unfinished path with it (``tools._ToolMenu``, #156, #222). Always on (``CoordinateTool``,
+  ``ModesTool``, ``ViewTool``). Retired by glue-qt #72 for the entries shown while ``enabled``; for the rest by
+  glue-qt's toolbar listing subtools in ``tools`` and ``actions``, with check marks and keys of the toolbar's, and
+  leaving the active mouse mode on as a plain tool runs (report candidate).
 - **A wavelength band kept as its slider moves**: ``BandTool`` adds a validator to an Image viewer state's ``slices``
   that makes the index of each wavelength axis not shown an ``AggregateSlice`` mean over 5, 9 or 15 pixels about it
   again (``tools.BandTool._band``, #169), as glue-qt's slider sets a plain index at any move. Per viewer: while a band
