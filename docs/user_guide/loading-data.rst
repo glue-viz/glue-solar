@@ -31,9 +31,9 @@ Browsing observations
 4. Press "Load selected", or Return. A double-click on an entry loads it alone.
 
 With "Open quicklook" ticked, each observation opens in a quicklook (see :ref:`Quicklook
-<glue_solar_users_guide_iris_quicklook>`) with the map, spectrogram and wavelength panel of the
-window in "Main window", which shows once two or more windows are ticked, Mg II k 2796 unless
-changed. Unticked, the first slit-jaw image or AIA cutout opens in an Image viewer.
+<glue_solar_users_guide_iris_quicklook>`). Its map, spectrogram and wavelength panel show the window
+in "Main window", Mg II k 2796 unless changed. That box shows once two or more windows are ticked.
+Unticked, the first slit-jaw image or AIA cutout opens in an Image viewer.
 
 "Stop" ends a search or a load with what has been read in full; :kbd:`Esc` drops it. If an entry
 fails to load, or an archive to unpack, a message under the progress bar names the file and the
@@ -55,17 +55,19 @@ To narrow the list:
 **Stacking scans.** Tick "Stack sequential raster scans" to load each window's scans as one cube,
 indexed by scan, raster step, slit pixel and wavelength, without resampling. The scan slider picks a
 scan, and each scan keeps its own coordinates and times. Scans that differ in shape or wavelengths
-are not stacked: glue says so and loads nothing.
+are not stacked: the browser says so and loads nothing.
 
 What a dataset holds
 --------------------
 
-Each dataset is labeled by its window or channel and its observation's start, to the minute, and a
-raster window of an observation of several rasters by its scan: ``Si IV 1403 2013-09-02 16:39``,
-``Si IV 1403 2013-09-02 18:29 scan 0``, ``Mg II k 2796 2025-03-28 22:56 stack`` or
-``SJI 1400 2013-09-02 16:39``. Data made from one are labeled after it, such as
-``… stack moments 2796.35``. Each raster window, stack, slit-jaw image and AIA cutout has these
-attributes, ``<window>`` being its window or channel, such as ``Si IV 1403``:
+Each dataset is labeled by its window or channel and its observation's start, to the minute:
+``Si IV 1403 2013-09-02 16:39`` or ``SJI 1400 2013-09-02 16:39``. A raster window of an observation
+of several rasters adds its scan, as ``Si IV 1403 2013-09-02 18:29 scan 0``, and a stack adds
+``stack``, as ``Mg II k 2796 2025-03-28 22:56 stack``. Data made from one are labeled after it, such
+as ``… stack moments 2796.35``.
+
+Each raster window, stack, slit-jaw image and AIA cutout has these attributes, ``<window>`` being
+its window or channel, such as ``Si IV 1403``:
 
 - ``<window>``, the data, in DN, with fill values as NaN;
 - ``Time``, the UTC time of each raster step, exposure or frame;
@@ -79,7 +81,7 @@ cubes join the Panels list unticked (see :ref:`Quicklook <glue_solar_users_guide
 Each dataset opens in sunpy's colormap of its channel, and an Image viewer's colormap menu lists
 every sunpy colormap.
 
-irispy reverses the step axis of a raster with a negative step (``STEPS_AV`` below -0.01), so
+A raster with a negative step (``STEPS_AV`` below -0.01) loads with its step axis reversed, so
 ``Time`` runs backwards along it.
 
 Data are read from their files as they are viewed: leave a loaded file in place (see :ref:`Known
@@ -107,7 +109,7 @@ SST CRISP and CHROMIS cubes
 ---------------------------
 
 Open an SST archive cube, a SOLARNET FITS file from SSTRED (``nb_8542_…_im.fits``), with "File →
-Open Data Set", or point the observation browser at a folder of the archive: its cubes list as one
+Open Data Set". Or point the observation browser at a folder of the archive: its cubes list as one
 observation, the instrument as its OBSID.
 
 - The axes are scan, Stokes, tuning, y and x, without Stokes for a cube of intensities such as
@@ -117,7 +119,7 @@ observation, the instrument as its OBSID.
 - ``Cavity error`` is the shift of each pixel's wavelength from the nominal one, in nm: add the
   arithmetic attribute ``{Wavelength} + {Cavity error}`` for the corrected wavelength.
 - A Profile viewer's "Main lines" mark the ground-based lines (see `DKIST datasets`_) in air, as
-  SSTRED's wavelengths are, such as Fe I 630.25 nm; "Lines in this range…" lists them, and they
+  the cube's wavelengths are, such as Fe I 630.25 nm. "Lines in this range…" lists them, and they
   give the cube's :ref:`rest wavelength <glue_solar_users_guide_iris_rest_wavelength>`.
 
 The cube's quicklook is described under :ref:`Other spectral cubes
@@ -132,29 +134,27 @@ reader, without these coordinates.
 DKIST datasets
 --------------
 
-Open a DKIST Level 1 dataset's ASDF file (``…_metadata.asdf``, as ``dkist`` downloads it) with
-"File → Open Data Set". It loads as one dataset, labeled by instrument and dataset ID, such as
-``VISP BKPLX``, and a VBI or DL-NIRSP mosaic as one dataset per tile, such as ``VBI YCDRFH (1, 1)``.
-The values stay in the FITS files next to the ASDF file: a view reads only the parts of the files it
-shows.
+Open a DKIST Level 1 dataset's ASDF file (``…_metadata.asdf``) with "File → Open Data Set". It loads
+as one dataset, labeled by instrument and dataset ID, such as ``VISP BKPLX``, and a VBI or DL-NIRSP
+mosaic as one dataset per tile, such as ``VBI YCDRFH (1, 1)``. The values stay in the FITS files
+next to the ASDF file: a view reads only the parts of the files it shows.
 
-- Each axis has one world coordinate, as glue shows them: a slit raster's step axis has its
-  longitude, or its time if the pointing moves less than a pixel along the slit (sit-and-stare).
-  Longitudes are from -180° to 180°.
+- Each axis shows one world coordinate: a slit raster's step axis its longitude, or its time if the
+  pointing moves less than a pixel along the slit (sit-and-stare). Longitudes are from -180° to
+  180°.
 - A frame whose FITS file is missing reads as NaN, and glue's Error Console says how many files
-  are there; one whose file is part-written, as Globus writes it, or corrupt reads as NaN too, the
-  Error Console naming the file, until the file is whole.
-- A file that arrives once the dataset is open, as by a Globus transfer started earlier, is read the
-  next time its frame is drawn. It counts for the color limits the next time glue takes them, as in
-  a new viewer or at another choice of the layer's limits, and "Download these frames…" leaves it
-  out; glue looks for a dataset's missing files at most every 5 s.
-- Color limits come from up to 16 whole frames; the tiles of a mosaic share theirs. NaN
+  are there. A file that is part-written, as during a transfer, or corrupt reads as NaN too until
+  it is whole, and the Error Console names it.
+- A file that arrives once the dataset is open, as by a transfer started earlier, is read the next
+  time its frame is drawn. It counts for the color limits the next time they are taken, as in a new
+  viewer or at another choice of the layer's limits, and "Download these frames…" leaves it out.
+- Color limits come from a sample of whole frames, the same for all the tiles of a mosaic. NaN
   pixels are transparent, as IRIS data's, so a mosaic's tiles in one Image viewer don't hide each
   other.
 - Each frame's time and exposure, from its FITS headers (``DATE-AVG`` and ``XPOSURE``), show in the
   "Frame time" line, the cursor readout and the quicklook's Point window.
 - A point on a dataset of Stokes parameters, repeats or Cryo-NIRSP measurements is taken at
-  the Image viewer's Stokes parameter, repeat and measurement, and moves with their sliders: its
+  the Image viewer's Stokes parameter, repeat and measurement, and moves with their sliders. Its
   Profile runs along the wavelength, raster step or time alone.
 - "Quicklook…" opens a ViSP or Cryo-NIRSP spectrograph dataset as any spectral cube: its map,
   virtual slit and spectra. The map is drawn as IRIS's, the steps across and the slit up, and the
@@ -162,21 +162,21 @@ shows.
   at each step, have a slider, as Stokes does. Of a full-Stokes dataset, Q, U and V show scaled
   with their noise level, as an SST cube's, at the quieter end of the wavelengths.
 - A Profile viewer's "Main lines" mark the lines ground-based telescopes observe, such as Ca II
-  854.2 nm, Fe XIII 1074.7 nm and He I 1083.0 nm, at NIST's wavelengths in air or vacuum as the
-  dataset's ``WAVEREF`` says, DKIST's being in air; "Lines in this range…" lists them, and they
-  give the dataset's :ref:`rest wavelength <glue_solar_users_guide_iris_rest_wavelength>`.
+  854.2 nm, Fe XIII 1074.7 nm and He I 1083.0 nm, at NIST's wavelengths. They are in air or vacuum
+  as the dataset's ``WAVEREF`` says, DKIST's being in air. "Lines in this range…" lists them, and
+  they give the dataset's :ref:`rest wavelength <glue_solar_users_guide_iris_rest_wavelength>`.
 - With the context imager observed with it loaded (VBI with ViSP, Cryo-NIRSP's own), a raster's
   quicklook shows it as an IRIS slit-jaw image: the slit and the point drawn on it, a click moving
   the point, its frame following the raster's step in time.
-- glue offers to link DKIST datasets as they load, by their coordinates, time included: accept,
-  and a point on one reaches the others, and one draws over another. A point or frame outside
-  another dataset's times reaches nothing there, so a mosaic's tiles that start later draw blank
-  at the first frame.
+- glue's "Link Suggestions" offers to link DKIST datasets as they load, by their coordinates, time
+  included. Press "Apply", and a point on one reaches the others, and one draws over another. A
+  point or frame outside another dataset's times reaches nothing there, so a mosaic's tiles that
+  start later draw blank at the first frame.
 - "Link helioprojective coordinates" links them to IRIS data by position and nearest time. A point
   more than half a step past a scanning raster's first or last step doesn't reach it.
 - "Mosaic…", in a mosaic tile's right-click menu, adds the tiles stitched into one image, north up,
   at the sliders of the first Image viewer of a tile, and opens it. A session saves its values,
-  0.66 GB for LOQEPP's.
+  which makes it large.
 - "DKIST footprints…", in the View menu of an Image viewer of a helioprojective image, draws the
   outline of each loaded DKIST dataset ticked and a raster's slit at the image's time, from the
   ASDF file alone.
@@ -196,9 +196,10 @@ AIA and HMI maps
 
 1. Choose "File → Open Data Set", select the files, and pick "sunpy Map" as the file type. For AIA
    cutouts aligned to IRIS (``aia_l2_*.fits``), leave "Auto".
-2. Drag a map onto an Image viewer.
-3. Drag a second map onto the same viewer. glue links maps by their coordinates, asking the first
-   time, and draws the second rotated and aligned onto the first.
+2. Press "Apply" in glue's "Link Suggestions", which offers to link the maps by their coordinates as
+   they load.
+3. Drag a map onto an Image viewer.
+4. Drag a second map onto the same viewer. It draws rotated and aligned onto the first.
 
 .. image:: images/loading-aia-and-hmi-4.png
    :width: 800
@@ -212,10 +213,10 @@ Linking
 The browser, a quicklook and the analyses link the helioprojective coordinates of the IRIS data they
 load or make, and of the aligned AIA cutouts and SOT cubes of the same observation, so a region drawn
 on one selects the same place on the Sun in the others. Maps, SST cubes, AIA cutouts and SOT cubes of
-another observation, and files opened with "File → Open Data Set" link only on request: choose
+another observation, and files opened with "File → Open Data Set" link only on request. Choose
 "Link helioprojective coordinates" in the "Plugins" menu once they are loaded, and again after
-loading more. With no IRIS data loaded, they link to the
-first of them, so SST cubes link to each other.
+loading more. With no IRIS data loaded, they link to the first of them, so SST cubes link to each
+other.
 
 - A region on a raster map or a map selects, in each slit-jaw frame, the pixels inside it at that
   frame's own pointing.
@@ -233,10 +234,10 @@ Seeing the FITS header
 ----------------------
 
 Select a dataset in the data collection and press :kbd:`Ctrl+I` (:kbd:`Cmd+I` on macOS), or choose
-"View metadata/header" in its right-click menu: a raster window's or slit-jaw image's primary
-header, then irispy's values per raster step or frame. A stack shows its first scan's. The window
-shows only the last ``HISTORY`` line; in glue's terminal, ``raster.meta.fits_header`` gives them all,
-and ``astropy.io.fits.getheader(path, n)`` the header of window ``n``.
+"View metadata/header" in its right-click menu. The window shows a raster window's or slit-jaw
+image's primary header, then the values per raster step or frame. A stack shows its first scan's.
+The window shows only the last ``HISTORY`` line: in glue's terminal, ``raster.meta.fits_header``
+gives them all.
 
 .. _glue_solar_users_guide_iris_saturation:
 
@@ -244,13 +245,13 @@ Missing and saturated samples
 -----------------------------
 
 Level 2 clips every sample to -199 to 16182 DN, so a sample saturated in Level 1 is stored at
-16182 DN. glue-solar, as irispy, keeps raster and slit-jaw samples at that ceiling at their value, so
-images, spectra and light curves show them, and marks them saturated in ``<window> mask``. Level 2
-cannot tell a saturated sample from one merely that bright, and its ``NSATPIX`` and ``TSATPXn`` are
-always 0: ignore them. The analyses blank a pixel where a sample they take is saturated, and the mean
+16182 DN. glue-solar keeps raster and slit-jaw samples at that ceiling at their value, so images,
+spectra and light curves show them. It marks them saturated in ``<window> mask``. Level 2 cannot
+tell a saturated sample from one merely that bright, and its ``NSATPIX`` and ``TSATPXn`` are always
+0: ignore them. The analyses blank a pixel where a sample they take is saturated, and the mean
 spectrum leaves such samples out. The IRIS fits leave a sample out where all the pixels it combines
 are saturated (for a Point, where it is), and note the wavelengths whose mean includes saturated
-pixels. UV burst detection takes saturated samples at their value, as IDL does.
+pixels. UV burst detection takes saturated samples at their value.
 
 To show missing or saturated samples as a subset, select the dataset itself in the data collection,
 not "Point", and in the "Data Manager" menu:

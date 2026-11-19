@@ -4,36 +4,35 @@
 Known issues
 ============
 
-These come from glue, glue-qt and the libraries glue-solar builds on, as of glue-core 1.28.0 and
-glue-qt 0.4.2. To report another, choose "glue-solar user guide and issues" in the "Plugins" menu, which
-opens glue-solar's `issues <https://github.com/glue-viz/glue-solar/issues>`__.
+To report an issue, choose "glue-solar user guide and issues" in the "Plugins" menu, which opens
+glue-solar's `issues <https://github.com/glue-viz/glue-solar/issues>`__.
 
 Installing
 ----------
 
-- **PyQt5 beside PyQt6:** set ``QT_API=pyqt6`` before starting glue, as qtpy takes PyQt5 first.
+- **PyQt5 installed beside PyQt6:** glue opens without glue-solar's menu entries. Set
+  ``QT_API=pyqt6`` before starting glue.
 - **The O IV density preset:** keep ``em`` and ``ip`` out of the path of ``~/.fiasco``, as in a
-  folder named emily or Temp, or fiasco builds no ions. If glue quits while fiasco builds the CHIANTI
-  database, delete the unfinished ``chianti_dbase.h5`` before the next use.
+  folder named emily or Temp, or the CHIANTI database is built without its ions. If glue quits while
+  the database is built, delete the unfinished ``chianti_dbase.h5`` before the next use.
 
 Loading
 -------
 
 - **Files in use:** don't overwrite, move or unplug a file while its data are loaded. They are read
   from it as they are viewed, and glue can crash.
-- **SST cubes:** open maps before SST cubes, and cubes without Stokes before those with, or glue's
-  autolinker reports an error, although the data load.
-- **Mosaics of many tiles:** linking a DL-NIRSP mosaic's 108 tiles takes about a minute, linking
-  its "Mosaic…" image to them about 20 s, and each draw of them all in one Image viewer about 40 s,
-  of a VBI mosaic's 9, as in a ViSP quicklook, about 1.5 s.
+- **SST cubes:** open maps before SST cubes, and cubes without Stokes before those with. Otherwise
+  glue shows an error as they load, although the data load.
+- **Mosaics of many tiles:** linking the tiles of a large mosaic, such as DL-NIRSP's, takes a while,
+  and so does each draw of them all in one Image viewer. Show only the tiles you need in a viewer.
 
 Viewers
 -------
 
-- **ViSP maps:** each pan or zoom of one in an Image viewer takes about 1 s, as dkist computes the
-  pointing of every raster step again for its axes; the quicklook's map, without axes, about 0.4 s.
-- **Time axes:** glue's axes are index axes, so exposures, scans and frames show evenly spaced
-  whatever their cadence. Use :ref:`"IRIS: regrid on time" <glue_solar_users_guide_iris_regrid>`.
+- **ViSP maps:** a pan or zoom of one in an Image viewer is slow. It is faster without axes, as the
+  quicklook's map opens: choose "Hide axes" in the View menu.
+- **Time axes:** exposures, scans and frames show evenly spaced, whatever their cadence. Use
+  :ref:`"IRIS: regrid on time" <glue_solar_users_guide_iris_regrid>`.
 - **Regions:** to change a region, pick it as the toolbar's "Active Subset" first, and pick "Point"
   again before moving the point.
 - **Regions from other viewers:** draw regions on a quicklook's panels. One drawn on a raster in
