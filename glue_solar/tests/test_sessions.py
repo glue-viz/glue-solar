@@ -58,7 +58,17 @@ from glue_solar.sources.loaders.iris import (
 from glue_solar.sources.loaders.lazy import LazyData
 from glue_solar.sources.maps import read_sunpy_map
 from glue_solar.sources.moments import line_moments, subtract_mean_spectrum
-from glue_solar.tests.helpers import angles, linked_data, load_selected, mouse, restore, scanned, select_point, shift
+from glue_solar.tests.helpers import (
+    angles,
+    linked_data,
+    load_selected,
+    mouse,
+    other_drive,
+    restore,
+    scanned,
+    select_point,
+    shift,
+)
 from glue_solar.tests.test_bursts import SI_IV
 from glue_solar.tests.test_cube_quicklook import spectral_cube
 from glue_solar.tests.test_importer import _row, counted_reads
@@ -458,6 +468,27 @@ def test_a_session_refers_to_the_files_the_browser_loads_and_opens_after_they_mo
     # and a session saved from the restored one refers to them alike
     restored.save_session(str(tmp_path / "moved" / "again.glu"), absolute_paths=False)
     assert json.loads((tmp_path / "moved" / "again.glu").read_text()).keys() == records.keys()
+
+
+def test_a_session_with_relative_paths_refers_by_its_whole_path_to_a_file_on_another_drive(
+    app, qtbot, monkeypatch, tmp_path, irispy_test_files
+):
+    # Windows has no path from one drive to another: glue raised its ValueError, and saved no session
+    paths = []
+    for drive, name in (("c", SJI), ("d", SNS.format("SJI_1400_t000"))):
+        (tmp_path / drive).mkdir()
+        paths.append(shutil.copy(find_irispy_test_file(irispy_test_files, name), tmp_path / drive))
+    datasets = [image_data(path) for path in paths]
+    app.data_collection.extend(datasets)
+    other_drive(monkeypatch, tmp_path / "d")
+    app.save_session(str(tmp_path / "c" / "session.glu"), absolute_paths=False)
+    records = json.loads((tmp_path / "c" / "session.glu").read_text())
+    logs = {record["path"] for record in records.values() if "LoadLog" in record["_type"]}
+    assert logs == {os.path.basename(paths[0]), paths[1]}  # the file beside the session still by its name
+    restored = restore(qtbot, monkeypatch, tmp_path / "c" / "session.glu")
+    for data, expected in zip(restored.data_collection, datasets, strict=True):
+        assert data.label == expected.label
+        np.testing.assert_array_equal(data[data.main_components[0]], expected[expected.main_components[0]])
 
 
 def test_a_quicklook_session_stays_small_and_opens(app, qtbot, monkeypatch, tmp_path, iris_tree):

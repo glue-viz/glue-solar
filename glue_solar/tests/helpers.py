@@ -2,7 +2,9 @@
 Helpers that drive glue's viewers the way a user does, and read the expected answers from the data.
 """
 
+import os
 from collections import Counter
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -92,6 +94,23 @@ def inversions(monkeypatch, data):
     calls, inverse = [], data.coords.world_to_pixel_values
     monkeypatch.setattr(data.coords, "world_to_pixel_values", lambda *world: calls.append(1) or inverse(*world))
     return calls
+
+
+def other_drive(monkeypatch, folder):
+    """
+    Make ``os.path.relpath`` refuse a path between ``folder`` and a place outside it, as Windows' refuses one between
+    two drives, with its error.
+    """
+
+    def mount(place):
+        return "D:" if Path(os.path.abspath(place)).is_relative_to(folder) else "C:"
+
+    def relpath(path, start=os.curdir, _relpath=os.path.relpath):
+        if mount(path) != mount(start):
+            raise ValueError(f"path is on mount {mount(path)!r}, start on mount {mount(start)!r}")
+        return _relpath(path, start)
+
+    monkeypatch.setattr(os.path, "relpath", relpath)
 
 
 def restore(qtbot, monkeypatch, path, show=False):
