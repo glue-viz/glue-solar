@@ -1686,6 +1686,37 @@ def test_iris_field_of_view_boxes_the_raster_and_the_slit_jaw_image_on_an_aia_pa
     assert coord.fields == set()
 
 
+def test_iris_field_of_view_follows_a_shifted_pointing_and_a_removed_raster(
+    bare_app, qtbot, monkeypatch, tmp_path, irispy_test_files
+):
+    # with 'Raster overlays' off and the raster in no viewer, as File → Open Data Set leaves it: no time sync draws the
+    # boxes again
+    path = repointed(tmp_path / SNS.format("raster_t000_r00000"), irispy_test_files, step=0.3)
+    [raster] = raster_data([path], ["Si IV 1403"])
+    _, sji = sit_and_stare(irispy_test_files)
+    aia = image_data(find_irispy_test_file(irispy_test_files, SNS.format("SJI_1400_t000")))
+    aia.meta.update(INSTRUME="AIA_3", TDESC1="1600")
+    collection = bare_app.data_collection
+    collection.extend([raster, sji, aia])
+    viewer = bare_app.new_data_viewer(ImageViewer, data=aia)
+    [boxes] = [line for line in viewer.axes.lines if line.get_gid() == "solar:field"]
+    viewer.toolbar.tools["solar:field_of_view"].activate()
+
+    def corner():  # the first of the raster's box, as the first test's
+        return raster_point_on_sji(raster, aia, 0, -0.5, viewer.state.slices[0])
+
+    x, y = boxes.get_data()
+    assert len(x) == 12  # the raster's box and the slit-jaw image's
+    assert (x[0], y[0]) == pytest.approx(corner(), abs=1e-6)
+    shift(monkeypatch, raster, collection, (10, -5))
+    assert abs(corner()[0] - x[0]) > 5  # in the cutout's pixels
+    x, y = boxes.get_data()
+    assert (x[0], y[0]) == pytest.approx(corner(), abs=1e-6)
+    collection.remove(raster)
+    qtbot.wait(20)
+    assert len(boxes.get_xdata()) == 6  # the slit-jaw image's box alone
+
+
 def test_a_stack_master_moves_the_slit_jaw_image_by_scan_and_step(bare_app, qtbot, scans):
     _, stack = scans
     start = stack[stack.id["Time"]][0, 0, 0, 0]

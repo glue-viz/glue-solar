@@ -400,8 +400,8 @@ class Coordinator(HubListener):
     def _forget(self, message):
         """
         Let a removed dataset go, with its memory map and file handle: drop what names it, empty a quicklook point on it
-        as Clear point does, and draw the raster overlays again; then give the SST cubes left their time keys
-        (`_share_times`).
+        as Clear point does, and draw the raster overlays and field-of-view boxes again; then give the SST cubes left
+        their time keys (`_share_times`).
         """
         data = message.data
 
@@ -423,9 +423,10 @@ class Coordinator(HubListener):
         if names(self._kept) or names(self._outside):
             self._kept, self._outside = (None, None, None, None), (None, None)
         self._placed = self._footprint = self._field = self._tiles = (None, None)
-        if self.overlays:  # a removed raster's slits go, which no frame step would redraw (D40)
+        shown = self.overlays | self.fields
+        if shown:  # a removed raster's slits and box go, which no frame step would redraw (D40)
             self._timer.start()
-            QTimer.singleShot(0, lambda: self._unsynced_overlays(self.overlays))  # once glue's viewers let it go
+            QTimer.singleShot(0, lambda: self._unsynced_overlays(shown))  # once glue's viewers let it go
         self._share_times()
 
     def _share_times(self, *_):
@@ -622,7 +623,7 @@ class Coordinator(HubListener):
         """Place the point and the raster overlays again, as after a pointing changed ('IRIS: shift pointing…')."""
         self._placed = self._footprint = self._field = (None, None)
         self._timer.start()  # the sync redraws them
-        self._unsynced_overlays(self.overlays)
+        self._unsynced_overlays(self.overlays | self.fields)
 
     def clear_point(self):
         """Empty the followed group, which hides its crosshairs."""
